@@ -1,0 +1,57 @@
+steps:
+  # Run tests before building the image
+  - name: python:3.11-slim
+    id: test
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        pip install --quiet -r requirements.txt
+        python -m pytest tests/ -v
+
+  # Build the Docker image
+  - name: gcr.io/cloud-builders/docker
+    id: build
+    args:
+      - build
+      - -t
+      - $_IMAGE
+      - .
+
+  # Push the image to Artifact Registry
+  - name: gcr.io/cloud-builders/docker
+    id: push
+    args:
+      - push
+      - $_IMAGE
+
+  # Deploy to Cloud Run
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    id: deploy
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - $_SERVICE_NAME
+      - --image=$_IMAGE
+      - --region=$_REGION
+      - --platform=managed
+      - --allow-unauthenticated
+      - --port=8080
+      - --memory=512Mi
+      - --cpu=1
+      - --min-instances=0
+      - --max-instances=10
+      - --set-env-vars=STREAMLIT_SERVER_HEADLESS=true,STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
+      - --update-secrets=OPENAI_API_KEY=OPENAI_API_KEY:latest
+
+substitutions:
+  _REGION: us-central1
+  _SERVICE_NAME: sturdy-broccoli
+  _IMAGE: us-central1-docker.pkg.dev/$PROJECT_ID/sturdy-broccoli/app:$SHORT_SHA
+
+images:
+  - $_IMAGE
+
+options:
+  logging: CLOUD_LOGGING_ONLY

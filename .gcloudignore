@@ -1,0 +1,31 @@
+# Files and directories to exclude from gcloud deployments
+.git/
+.gitignore
+.gcloudignore
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+.pytest_cache/
+
+# Local environment / secrets
+.env
+*.env
+
+# Editor metadata
+.vscode/
+.idea/
+*.swp
+
+# Generated output (not needed at deploy time)
+output/
+
+# Tests (not required at runtime)
+tests/
+
+# Local virtual environments
+venv/
+.venv/
+env/
