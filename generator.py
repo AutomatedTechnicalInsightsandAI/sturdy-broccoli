@@ -31,8 +31,10 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import re
 import sys
 from pathlib import Path
+from typing import Any
 
 logging.basicConfig(
     level=logging.INFO,
@@ -227,16 +229,12 @@ def _print_result_summary(result: "GenerationResult") -> None:
 
 
 def _slugify(text: str) -> str:
-    import re  # noqa: PLC0415
-
     return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
 
 
 # ---------------------------------------------------------------------------
 # Argument parser
 # ---------------------------------------------------------------------------
-
-from typing import Any  # noqa: E402
 
 
 def _build_parser() -> argparse.ArgumentParser:

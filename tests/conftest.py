@@ -169,6 +169,19 @@ Measure the impact using `pg_stat_user_tables` before and after: track `n_dead_t
     )
 
     def complete(self, prompt: str, *, system_prompt: str = "") -> str:
+        """
+        Return a pre-canned response based on the stage template title in *prompt*.
+
+        Each chain-of-thought stage template begins with a unique H1 title:
+        - Stage 1 (Outline): "# Stage 1: Outline Generation"
+        - Stage 2 (Research): "# Stage 2: Research Extraction and Claim Substantiation"
+        - Stage 3 (Tone):     "# Stage 3: Tone Application and Prose Generation"
+        - Stage 4 (Polish):   "# Stage 4: Final Polish and Quality Gate"
+
+        Dispatch checks Stage 4 first because the polish template back-references
+        "Stage 3" in its description, which would cause a false match if earlier
+        stages were checked first.
+        """
         # Use unique title strings from each stage template to dispatch correctly.
         # Order matters: check more specific (later) stages before earlier ones
         # to avoid false matches on back-references (e.g. stage 4 mentions "Stage 3").

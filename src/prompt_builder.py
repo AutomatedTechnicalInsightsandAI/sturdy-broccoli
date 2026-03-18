@@ -132,6 +132,32 @@ class PromptBuilder:
             )
         return page_types[page_type]["required_sections"]
 
+    def get_page_type_structure(self, page_type: str) -> dict[str, Any]:
+        """
+        Return the full structure definition for a given page type.
+
+        Includes ``required_sections``, ``total_word_range``, and
+        ``variation_axes`` as defined in ``content_structure.json``.
+
+        Parameters
+        ----------
+        page_type:
+            One of the page types defined in ``content_structure.json``
+            (e.g. ``'blog_post'``, ``'landing_page'``).
+
+        Raises
+        ------
+        ValueError
+            If *page_type* is not found in the configuration.
+        """
+        page_types = self._structure.get("page_types", {})
+        if page_type not in page_types:
+            raise ValueError(
+                f"Unknown page type '{page_type}'. "
+                f"Available types: {list(page_types.keys())}"
+            )
+        return page_types[page_type]
+
     def validate_content(self, content: str, page_type: str) -> dict[str, Any]:
         """
         Run static validation checks on generated content without calling an LLM.

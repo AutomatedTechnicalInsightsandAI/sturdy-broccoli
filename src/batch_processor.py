@@ -164,8 +164,8 @@ class BatchProcessor:
         for idx, page in enumerate(pages):
             page_type = page.get("page_type", "blog_post")
             try:
-                structure = builder._structure["page_types"].get(page_type, {})  # noqa: SLF001
-            except (AttributeError, KeyError):
+                structure = builder.get_page_type_structure(page_type)
+            except ValueError:
                 continue
 
             variation_axes = structure.get("variation_axes", [])
@@ -177,7 +177,7 @@ class BatchProcessor:
                 str(page.get(axis, "")).strip().lower()
                 for axis in variation_axes
             )
-            fingerprint = hashlib.md5(  # noqa: S324
+            fingerprint = hashlib.sha256(  # noqa: S324
                 "|".join(axis_values).encode()
             ).hexdigest()
 
