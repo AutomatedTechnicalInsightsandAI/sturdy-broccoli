@@ -1,17 +1,21 @@
-import streamlit as st
-from generator import generate_prompts  # Assuming generator.py is in the same directory
+import sys
 
-# Streamlit application
-st.title('Prompt Generator')
+from src.prompt_builder import PromptBuilder
 
-# Input fields for users to enter page data
-user_input = st.text_area('Enter Page Data:')
-dry_run = st.checkbox('Run Dry-Run Mode')
+class GUIWrapper:
+    def __init__(self, prompt: str):
+        self.prompt_builder = PromptBuilder(prompt)
 
-if st.button('Generate Prompts'):
-    if user_input:
-        prompts = generate_prompts(user_input, dry_run=dry_run)  # Call the generator function
-        st.success('Prompts Generated!')
-        st.write(prompts)
+    def run(self):
+        # Logic to run the GUI and integrate with the CLI
+        print("Running GUI with CLI integration...")
+        # Example: Call methods from PromptBuilder to use within GUI
+        self.prompt_builder.build_prompt()  # Adjust parameters as needed
+
+if __name__ == '__main__':
+    if len(sys.argv) > 1:
+        prompt = sys.argv[1]
     else:
-        st.error('Please enter valid page data.')
+        prompt = "Default prompt"
+    gui = GUIWrapper(prompt)
+    gui.run()
