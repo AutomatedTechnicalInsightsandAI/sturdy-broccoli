@@ -1,0 +1,126 @@
+{
+  "search_intent_types": {
+    "informational": {
+      "description": "User wants to understand a concept or process",
+      "trigger_words": ["what is", "how does", "why does", "explain", "what are", "how to understand"],
+      "content_requirements": {
+        "must_define_subject": true,
+        "must_include_mechanism": true,
+        "must_include_examples": true,
+        "avoid_heavy_cta": true
+      },
+      "preferred_sections": ["hook", "problem_definition", "unique_perspective", "technical_deep_dive", "evidence_and_data", "close"]
+    },
+    "navigational": {
+      "description": "User is looking for a specific resource or tool",
+      "trigger_words": ["best", "top", "vs", "alternative to", "compared to", "review"],
+      "content_requirements": {
+        "must_include_comparison": true,
+        "must_include_verdict": true,
+        "must_name_specific_products": true
+      },
+      "preferred_sections": ["hook", "unique_perspective", "technical_deep_dive", "evidence_and_data", "practical_application", "close"]
+    },
+    "transactional": {
+      "description": "User is ready to take an action or make a purchase",
+      "trigger_words": ["buy", "hire", "download", "get", "pricing", "cost", "cheap", "free"],
+      "content_requirements": {
+        "must_include_proof": true,
+        "must_include_cta": true,
+        "must_address_objections": true
+      },
+      "preferred_sections": ["headline", "sub_headline", "proof_block", "feature_breakdown", "cta"]
+    },
+    "commercial_investigation": {
+      "description": "User is researching before making a decision",
+      "trigger_words": ["best way to", "should i", "is it worth", "pros and cons", "guide to", "how to choose"],
+      "content_requirements": {
+        "must_include_criteria": true,
+        "must_include_trade_offs": true,
+        "must_include_recommendation": true
+      },
+      "preferred_sections": ["hook", "problem_definition", "unique_perspective", "technical_deep_dive", "practical_application", "evidence_and_data", "close"]
+    }
+  },
+  "long_tail_query_patterns": {
+    "description": "Templates for constructing long-tail keyword targets that signal specificity and avoid head-term competition",
+    "patterns": [
+      "{specific_problem} for {audience_segment} in {context_or_industry}",
+      "how to {specific_action} when {condition_or_constraint}",
+      "{tool_or_platform} {specific_use_case} {result_or_outcome}",
+      "why {conventional_wisdom} fails for {specific_scenario}",
+      "{metric} benchmarks for {industry_or_niche} {year}",
+      "difference between {option_a} and {option_b} for {specific_use_case}",
+      "{action_verb} {technical_component} without {common_trade_off}",
+      "best {tool_category} for {team_size_or_context} with {constraint}"
+    ],
+    "example_transformations": {
+      "bad": "solar panels for homeowners",
+      "better": "solar panel ROI calculation for homeowners with time-of-use electricity rates",
+      "rationale": "The improved query targets users with a specific financial decision to make, not generic curiosity. Conversion intent is higher, competition is lower."
+    }
+  },
+  "eeat_signals": {
+    "experience": [
+      "Include a first-person observation or result where applicable",
+      "Reference a specific test, measurement, or hands-on outcome",
+      "Name specific constraints that were encountered"
+    ],
+    "expertise": [
+      "Use the correct technical terminology for the niche — defined in context",
+      "Address edge cases and failure modes",
+      "Distinguish between beginner and advanced interpretations of the same concept"
+    ],
+    "authoritativeness": [
+      "Reference primary sources (studies, standards, official documentation) where they exist",
+      "Name specific tool versions, industry bodies, or certification standards",
+      "Include quantified outcomes, not qualitative claims alone"
+    ],
+    "trustworthiness": [
+      "Acknowledge limitations and conditions under which the advice does not apply",
+      "Do not make absolute claims without qualification",
+      "Cite uncertainty where it genuinely exists — this signals intellectual honesty"
+    ]
+  },
+  "semantic_triplet_guidelines": {
+    "description": "Subject-Predicate-Object structures that Google's NLP can extract as named entities and relationships",
+    "good_examples": [
+      "Solar inverters convert DC electricity into grid-compatible AC power.",
+      "Python's GIL prevents true multithreading in CPU-bound tasks.",
+      "BERT tokenizers split words into subword units using WordPiece encoding."
+    ],
+    "bad_examples": [
+      "This is really important to understand.",
+      "There are many ways to approach this.",
+      "It can be challenging to deal with."
+    ],
+    "rules": [
+      "Name the subject explicitly — avoid 'this', 'it', 'they' as subjects",
+      "Use active, precise verbs — avoid 'is', 'are', 'has', 'involves'",
+      "Make the object specific — avoid 'things', 'aspects', 'elements', 'factors'"
+    ]
+  },
+  "topic_depth_requirements": {
+    "shallow": {
+      "definition_coverage": "primary definition only",
+      "mechanism_detail": "none required",
+      "examples": "1 generic example",
+      "word_count": 300,
+      "use_case": "Quick-answer featured snippet target"
+    },
+    "medium": {
+      "definition_coverage": "definition + key sub-concepts",
+      "mechanism_detail": "one-level deep",
+      "examples": "2–3 specific examples",
+      "word_count": 800,
+      "use_case": "Standard informational blog post"
+    },
+    "deep": {
+      "definition_coverage": "definition + sub-concepts + edge cases",
+      "mechanism_detail": "multi-level with failure modes",
+      "examples": "3–5 niche-specific examples with outcomes",
+      "word_count": 1500,
+      "use_case": "Pillar content, cluster hub, or competitive SERP target"
+    }
+  }
+}

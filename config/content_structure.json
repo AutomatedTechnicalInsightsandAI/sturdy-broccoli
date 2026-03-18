@@ -1,0 +1,194 @@
+{
+  "page_types": {
+    "blog_post": {
+      "required_sections": [
+        {
+          "id": "hook",
+          "label": "Opening Hook",
+          "description": "A specific, data-backed or anecdote-driven opening statement. No generic intro. Must cite a concrete number, case, or counter-intuitive claim within the first two sentences.",
+          "min_words": 60,
+          "max_words": 120,
+          "rules": [
+            "Must open with a specific fact, statistic, or direct claim — never a question or platitude",
+            "No generic welcome statements",
+            "Establish the author's authority or firsthand perspective immediately"
+          ]
+        },
+        {
+          "id": "problem_definition",
+          "label": "Problem Definition",
+          "description": "Precise, technical definition of the core problem. Avoid abstract language. Use Subject-Predicate-Object sentence structures.",
+          "min_words": 100,
+          "max_words": 200,
+          "rules": [
+            "Define the problem with at least one measurable dimension (time, cost, frequency)",
+            "Name the specific audience segment affected",
+            "Avoid 'many people' or 'a lot of' — use percentages or named groups"
+          ]
+        },
+        {
+          "id": "unique_perspective",
+          "label": "Counter-Intuitive Insight or Unique Perspective",
+          "description": "A section that disagrees with the conventional wisdom on the topic, backed by evidence or first-principles reasoning. This is the primary Information Gain section.",
+          "min_words": 150,
+          "max_words": 300,
+          "rules": [
+            "Must explicitly challenge a widely-held belief",
+            "Must provide a verifiable or reasoned basis for the counter-claim",
+            "Avoid hedging language ('might', 'could', 'perhaps', 'possibly')"
+          ]
+        },
+        {
+          "id": "technical_deep_dive",
+          "label": "Technical Deep Dive",
+          "description": "Substantive, mechanism-level explanation of how the solution works. Use specific terminology from the niche. No analogies unless they add precision.",
+          "min_words": 300,
+          "max_words": 600,
+          "subsections": [
+            "Mechanism: how it works at a technical level",
+            "Variables: what factors change the outcome",
+            "Failure modes: what causes it to fail and why"
+          ],
+          "rules": [
+            "Include at least 3 domain-specific technical terms, defined in context",
+            "Semantic triplets (Subject-Predicate-Object) must account for >60% of sentences",
+            "No passive voice for more than 2 consecutive sentences"
+          ]
+        },
+        {
+          "id": "practical_application",
+          "label": "Practical Application",
+          "description": "Step-by-step, tool-specific, or decision-tree guidance. Includes edge cases. Not generic tips.",
+          "min_words": 200,
+          "max_words": 400,
+          "rules": [
+            "Each step must include a specific action verb (configure, measure, calculate, test)",
+            "Include at least one condition branch: 'If X, then Y; if not X, then Z'",
+            "Reference at least one specific tool, standard, or platform by name"
+          ]
+        },
+        {
+          "id": "evidence_and_data",
+          "label": "Evidence and Supporting Data",
+          "description": "Concrete data points, case studies, or cited findings that support the article's claims.",
+          "min_words": 100,
+          "max_words": 200,
+          "rules": [
+            "At least one data point with a source or methodology",
+            "No vague qualifiers ('studies show', 'research indicates' without specifics)",
+            "Data must be niche-specific, not generic statistics"
+          ]
+        },
+        {
+          "id": "close",
+          "label": "Close",
+          "description": "A direct, specific closing that reinforces the unique perspective and prompts a concrete next action. No summary or conclusion header.",
+          "min_words": 60,
+          "max_words": 120,
+          "rules": [
+            "No section header labelled 'Conclusion' or 'Summary'",
+            "Must end with a specific, actionable directive or a pointed question that provokes reader action",
+            "The closing sentence must not be a restatement of the opening"
+          ]
+        }
+      ],
+      "total_word_range": [900, 1800],
+      "variation_axes": [
+        "opening_data_point",
+        "counter_intuitive_claim",
+        "primary_technical_term",
+        "target_audience_segment",
+        "named_tool_or_platform",
+        "failure_mode_example"
+      ]
+    },
+    "landing_page": {
+      "required_sections": [
+        {
+          "id": "headline",
+          "label": "Primary Headline",
+          "description": "Value proposition headline. Specific outcome + audience + timeframe or mechanism. No puns or wordplay.",
+          "max_words": 12,
+          "rules": [
+            "Must name a specific, measurable outcome",
+            "No gerunds as first word ('Improving', 'Getting', 'Building')",
+            "Must target a specific audience, not 'everyone' or 'anyone'"
+          ]
+        },
+        {
+          "id": "sub_headline",
+          "label": "Sub-Headline",
+          "description": "Expands on the headline by naming the mechanism or differentiator.",
+          "max_words": 25,
+          "rules": [
+            "Must introduce the primary differentiator or mechanism",
+            "Must not repeat words from the headline"
+          ]
+        },
+        {
+          "id": "proof_block",
+          "label": "Social Proof / Authority Block",
+          "description": "Specific credibility signals: numbers, named clients, certifications, or outcomes.",
+          "min_words": 30,
+          "max_words": 80,
+          "rules": [
+            "At least one specific numeric result",
+            "No 'trusted by thousands' without a specific number"
+          ]
+        },
+        {
+          "id": "feature_breakdown",
+          "label": "Feature-Benefit Breakdown",
+          "description": "3–5 specific features, each with an explicit business outcome tied to it.",
+          "rules": [
+            "Feature name must be a noun phrase, not a verb phrase",
+            "Each benefit must be measurable or testable",
+            "No bullet points starting with 'Boost', 'Improve', 'Enhance' without a numeric qualifier"
+          ]
+        },
+        {
+          "id": "cta",
+          "label": "Primary Call to Action",
+          "description": "A single, specific CTA with a benefit-oriented label.",
+          "max_words": 8,
+          "rules": [
+            "CTA button text must state what the user gets, not what they do",
+            "No generic labels: 'Click Here', 'Learn More', 'Submit', 'Get Started'"
+          ]
+        }
+      ],
+      "total_word_range": [300, 600],
+      "variation_axes": [
+        "target_audience_segment",
+        "primary_outcome",
+        "named_differentiator",
+        "proof_metric",
+        "cta_offer"
+      ]
+    }
+  },
+  "global_rules": {
+    "reading_level": {
+      "min_grade": 8,
+      "max_grade": 14,
+      "note": "Flesch-Kincaid Grade Level. Below 8 is too simple; above 14 is too dense."
+    },
+    "sentence_variety": {
+      "min_sentence_length": 8,
+      "max_sentence_length": 35,
+      "note": "Mix short declarative sentences (8-15 words) with longer analytical ones (20-35 words). Never more than 3 consecutive sentences of the same approximate length."
+    },
+    "paragraph_length": {
+      "max_sentences": 4,
+      "note": "Keep paragraphs tight. Web readers scan. Dense paragraphs signal low-quality."
+    },
+    "semantic_triplet_density": {
+      "min_ratio": 0.60,
+      "note": "At least 60% of sentences should follow Subject-Predicate-Object structure. This correlates with Flesch readability and Google's entity extraction."
+    },
+    "duplication_prevention": {
+      "max_shared_phrase_length": 6,
+      "note": "No phrase longer than 6 consecutive words may appear verbatim across more than 10% of the batch."
+    }
+  }
+}
