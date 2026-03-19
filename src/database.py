@@ -33,11 +33,16 @@ _SCHEMA_SQL = """
 PRAGMA foreign_keys=ON;
 
 CREATE TABLE IF NOT EXISTS clients (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    name        TEXT    NOT NULL,
-    slug        TEXT    NOT NULL UNIQUE,
-    website     TEXT    DEFAULT '',
-    created_at  TEXT    NOT NULL
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    name            TEXT    NOT NULL,
+    slug            TEXT    NOT NULL UNIQUE,
+    website         TEXT    DEFAULT '',
+    industry        TEXT    NOT NULL DEFAULT '',
+    email           TEXT    NOT NULL DEFAULT '',
+    status          TEXT    NOT NULL DEFAULT 'active'
+                            CHECK(status IN ('active','inactive','archived')),
+    contract_value  REAL    NOT NULL DEFAULT 0,
+    created_at      TEXT    NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS pages (
@@ -194,6 +199,50 @@ CREATE INDEX IF NOT EXISTS idx_batch_pages_status    ON batch_pages(status);
 CREATE INDEX IF NOT EXISTS idx_page_revisions_page   ON page_revisions(page_id);
 """
 
+# ---------------------------------------------------------------------------
+# Agency workflow schema DDL (client pipeline + revenue tracking)
+# ---------------------------------------------------------------------------
+
+_AGENCY_SCHEMA_SQL = """
+PRAGMA foreign_keys=ON;
+
+CREATE TABLE IF NOT EXISTS staging_batches (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    client_name     TEXT    NOT NULL DEFAULT '',
+    batch_name      TEXT    NOT NULL,
+    total_pages     INTEGER NOT NULL DEFAULT 0,
+    approved_count  INTEGER NOT NULL DEFAULT 0,
+    status          TEXT    NOT NULL DEFAULT 'draft'
+                            CHECK(status IN ('draft','staged','approved','deployed')),
+    created_date    TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+    deployed_url    TEXT    NOT NULL DEFAULT '',
+    gcp_bucket_path TEXT    NOT NULL DEFAULT '',
+    price_paid      REAL    NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS staging_reviews (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    batch_id        INTEGER NOT NULL REFERENCES staging_batches(id) ON DELETE CASCADE,
+    client_comment  TEXT    NOT NULL DEFAULT '',
+    status          TEXT    NOT NULL DEFAULT 'pending'
+                            CHECK(status IN ('pending','approved','rejected')),
+    created_date    TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+);
+
+CREATE TABLE IF NOT EXISTS deployments (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    batch_id        INTEGER REFERENCES staging_batches(id) ON DELETE SET NULL,
+    deployed_by     TEXT    NOT NULL DEFAULT '',
+    deployed_date   TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+    deployed_url    TEXT    NOT NULL DEFAULT '',
+    gcp_bucket_path TEXT    NOT NULL DEFAULT '',
+    live_traffic_30d INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS idx_staging_reviews_batch ON staging_reviews(batch_id);
+CREATE INDEX IF NOT EXISTS idx_deployments_batch     ON deployments(batch_id);
+"""
+
 # Five standard templates seeded on first init.
 _TEMPLATE_SEEDS = [
     ("modern_saas",         "Modern SaaS"),
@@ -267,6 +316,8 @@ class Database:
             conn.executescript(_SCHEMA_SQL)
         with self._connect() as conn:
             conn.executescript(_STAGING_SCHEMA_SQL)
+        with self._connect() as conn:
+            conn.executescript(_AGENCY_SCHEMA_SQL)
         # Seed the five standard templates (idempotent).
         with self._connect() as conn:
             for name, display_name in _TEMPLATE_SEEDS:
@@ -606,7 +657,16 @@ class Database:
     # Client management
     # ------------------------------------------------------------------
 
-    def create_client(self, name: str, slug: str, website: str = "") -> int:
+    def create_client(
+        self,
+        name: str,
+        slug: str,
+        website: str = "",
+        industry: str = "",
+        email: str = "",
+        status: str = "active",
+        contract_value: float = 0.0,
+    ) -> int:
         """
         Insert a new client record and return its id.
 
@@ -618,6 +678,14 @@ class Database:
             URL-safe unique identifier (e.g. ``'acme-corp'``).
         website:
             Optional client website URL.
+        industry:
+            Optional industry label (e.g. ``'SaaS'``, ``'Healthcare'``).
+        email:
+            Optional contact email address.
+        status:
+            Client status: ``'active'``, ``'inactive'``, or ``'archived'``.
+        contract_value:
+            Total contract value in dollars.
 
         Returns
         -------
@@ -626,8 +694,10 @@ class Database:
         """
         with self._connect() as conn:
             cur = conn.execute(
-                "INSERT INTO clients (name, slug, website, created_at) VALUES (?,?,?,?)",
-                (name, slug, website, _now()),
+                "INSERT INTO clients "
+                "(name, slug, website, industry, email, status, contract_value, created_at) "
+                "VALUES (?,?,?,?,?,?,?,?)",
+                (name, slug, website, industry, email, status, contract_value, _now()),
             )
             return cur.lastrowid  # type: ignore[return-value]
 
@@ -1131,4 +1201,142 @@ class Database:
             "review_pages": row["review_pages"] or 0,
             "total_words": row["total_words"] or 0,
             "avg_quality_score": round(avg_quality, 1),
+        }
+
+    # ------------------------------------------------------------------
+    # Agency workflow: staging_batches / staging_reviews / deployments
+    # ------------------------------------------------------------------
+
+    def create_staging_batch(
+        self,
+        batch_name: str,
+        client_name: str = "",
+        total_pages: int = 0,
+        price_paid: float = 0.0,
+    ) -> int:
+        """Insert a staging batch and return its id."""
+        with self._connect() as conn:
+            cur = conn.execute(
+                "INSERT INTO staging_batches "
+                "(batch_name, client_name, total_pages, price_paid) "
+                "VALUES (?, ?, ?, ?)",
+                (batch_name, client_name, total_pages, price_paid),
+            )
+            return cur.lastrowid  # type: ignore[return-value]
+
+    def get_staging_batch(self, batch_id: int) -> dict[str, Any] | None:
+        """Return a staging_batches row by id, or ``None``."""
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM staging_batches WHERE id = ?", (batch_id,)
+            ).fetchone()
+            return dict(row) if row else None
+
+    def list_staging_batches(self) -> list[dict[str, Any]]:
+        """Return all staging batches ordered by creation date descending."""
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM staging_batches ORDER BY created_date DESC"
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    def update_staging_batch_status(
+        self,
+        batch_id: int,
+        status: str,
+        deployed_url: str = "",
+        gcp_bucket_path: str = "",
+    ) -> None:
+        """Update the status (and optional deployment fields) of a staging batch."""
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE staging_batches "
+                "SET status = ?, deployed_url = ?, gcp_bucket_path = ? "
+                "WHERE id = ?",
+                (status, deployed_url, gcp_bucket_path, batch_id),
+            )
+
+    def create_staging_review(
+        self,
+        batch_id: int,
+        client_comment: str = "",
+        status: str = "pending",
+    ) -> int:
+        """Insert a staging review record and return its id."""
+        with self._connect() as conn:
+            cur = conn.execute(
+                "INSERT INTO staging_reviews (batch_id, client_comment, status) "
+                "VALUES (?, ?, ?)",
+                (batch_id, client_comment, status),
+            )
+            return cur.lastrowid  # type: ignore[return-value]
+
+    def list_staging_reviews(self, batch_id: int) -> list[dict[str, Any]]:
+        """Return all reviews for a staging batch."""
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM staging_reviews WHERE batch_id = ? ORDER BY created_date DESC",
+                (batch_id,),
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    def create_deployment(
+        self,
+        batch_id: int | None,
+        deployed_by: str,
+        deployed_url: str,
+        gcp_bucket_path: str = "",
+    ) -> int:
+        """Record a deployment event and return its id."""
+        with self._connect() as conn:
+            cur = conn.execute(
+                "INSERT INTO deployments "
+                "(batch_id, deployed_by, deployed_url, gcp_bucket_path) "
+                "VALUES (?, ?, ?, ?)",
+                (batch_id, deployed_by, deployed_url, gcp_bucket_path),
+            )
+            return cur.lastrowid  # type: ignore[return-value]
+
+    def list_deployments(self, batch_id: int | None = None) -> list[dict[str, Any]]:
+        """Return deployment records, optionally filtered by batch."""
+        with self._connect() as conn:
+            if batch_id is not None:
+                rows = conn.execute(
+                    "SELECT * FROM deployments WHERE batch_id = ? ORDER BY deployed_date DESC",
+                    (batch_id,),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT * FROM deployments ORDER BY deployed_date DESC"
+                ).fetchall()
+            return [dict(r) for r in rows]
+
+    def get_agency_revenue_stats(self) -> dict[str, Any]:
+        """
+        Return aggregate revenue and pipeline statistics for the agency dashboard.
+
+        Returns
+        -------
+        dict
+            Keys: ``total_revenue``, ``draft_batches``, ``staged_batches``,
+            ``approved_batches``, ``deployed_batches``, ``total_batches``.
+        """
+        with self._connect() as conn:
+            row = conn.execute(
+                """SELECT
+                    COALESCE(SUM(price_paid), 0)                                AS total_revenue,
+                    SUM(CASE WHEN status='draft'    THEN 1 ELSE 0 END)         AS draft_batches,
+                    SUM(CASE WHEN status='staged'   THEN 1 ELSE 0 END)         AS staged_batches,
+                    SUM(CASE WHEN status='approved' THEN 1 ELSE 0 END)         AS approved_batches,
+                    SUM(CASE WHEN status='deployed' THEN 1 ELSE 0 END)         AS deployed_batches,
+                    COUNT(*)                                                    AS total_batches
+                FROM staging_batches"""
+            ).fetchone()
+        return {
+            "total_revenue": row["total_revenue"] or 0.0,
+            "draft_batches": row["draft_batches"] or 0,
+            "staged_batches": row["staged_batches"] or 0,
+            "approved_batches": row["approved_batches"] or 0,
+            "deployed_batches": row["deployed_batches"] or 0,
+            "total_batches": row["total_batches"] or 0,
         }
