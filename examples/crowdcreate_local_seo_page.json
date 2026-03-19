@@ -1,0 +1,49 @@
+{
+  "service_type": "local_seo",
+  "topic": "Local SEO Services for Small and Medium Businesses",
+  "service_name": "Local SEO",
+  "target_audience": "small business owners and local service companies seeking Google Maps and local organic visibility",
+  "search_intent_type": "commercial",
+  "primary_keyword": "local SEO services",
+  "secondary_keywords": "Google Business Profile optimisation, local citation building, map pack ranking, local link acquisition",
+  "niche": "digital marketing agency",
+  "niche_terminology": "map pack, NAP consistency, local citation, Google Business Profile, proximity signal, local organic, geo-targeted content",
+  "unique_perspective": "Most local SEO agencies focus on citation volume, but the primary ranking lever in competitive local niches is Google Business Profile engagement signals — specifically the ratio of profile views to website clicks, which the algorithm interprets as brand authority.",
+  "data_point": "Businesses with a Google Business Profile photo update rate of 4+ per month receive 42% more direction requests and 35% more website clicks than profiles updated monthly, according to Whitespark's 2023 Local Ranking Factors study.",
+  "named_tool": "Google Business Profile Insights",
+  "failure_mode": "Agencies build hundreds of citations without auditing NAP consistency, causing duplicate listings that suppress rather than boost map pack rankings due to conflicting business signals.",
+  "depth_level": "intermediate",
+  "experience_signal": "Demonstrated across 500+ local SEO campaigns spanning retail, professional services, and healthcare verticals",
+  "primary_technical_term": "NAP",
+  "authority_source": "Whitespark Local Citation Finder, Google Search Central documentation",
+  "page_type": "landing_page",
+  "tone_register": "professional-approachable",
+  "h1": "Local SEO Services That Put Your Business on the Map",
+  "h2_sections": [
+    "Why Local Search Visibility Drives Revenue",
+    "Our Local SEO Process",
+    "Google Business Profile Optimisation",
+    "Citation Building & NAP Consistency",
+    "Local Link Acquisition",
+    "Measuring Local SEO Success"
+  ],
+  "trust_factors": [
+    "Google Partner certified",
+    "Ranked #1 local SEO agency by Clutch (2024)",
+    "500+ local businesses ranked in map pack",
+    "Average 3× increase in Google Maps calls within 90 days"
+  ],
+  "testimonials": [
+    {
+      "quote": "Within 60 days we were in the top 3 of the local pack for every core service term.",
+      "author": "Sarah M., Owner — Bright Smiles Dental"
+    },
+    {
+      "quote": "Our phone calls from Google doubled in the first quarter after the campaign launched.",
+      "author": "James T., MD — Pacific Plumbing"
+    }
+  ],
+  "cta_primary": "Get Your Free Local SEO Audit",
+  "cta_secondary": "View Local SEO Case Studies",
+  "related_services": ["Digital PR", "GEO/AI SEO", "E-commerce Marketing"]
+}

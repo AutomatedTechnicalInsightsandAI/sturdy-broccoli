@@ -305,6 +305,188 @@ class PromptBuilder:
         with path.open(encoding="utf-8") as fh:
             return json.load(fh)
 
+    def build_hub_prompt(self, page_data: dict[str, Any]) -> str:
+        """
+        Return a prompt for generating a hub (service landing page) in a
+        hub-and-spoke content model.
+
+        The hub prompt instructs the LLM to produce a comprehensive service
+        page that acts as the central authority document.  Spoke content
+        links back to this page.
+
+        Parameters
+        ----------
+        page_data:
+            Dictionary of page-specific variables.  Must contain all fields
+            from ``_REQUIRED_PAGE_FIELDS`` plus optional ``service_name``,
+            ``h2_sections``, ``trust_factors``, and ``related_services``.
+
+        Returns
+        -------
+        str
+            The assembled hub prompt text.
+        """
+        self._validate_page_data(page_data)
+        substitutions = self._build_substitutions(page_data)
+
+        service_name = page_data.get("service_name", page_data.get("topic", "the service"))
+        h2_sections = page_data.get("h2_sections", [])
+        trust_factors = page_data.get("trust_factors", [])
+        related_services = page_data.get("related_services", [])
+
+        sections_text = (
+            "\n".join(f"- {s}" for s in h2_sections)
+            if h2_sections
+            else "- Service overview\n- Process\n- Results\n- Testimonials\n- CTA"
+        )
+        trust_text = (
+            "\n".join(f"- {t}" for t in trust_factors)
+            if trust_factors
+            else "- Certifications\n- Client results\n- Years of experience"
+        )
+        related_text = (
+            "\n".join(f"- {s}" for s in related_services)
+            if related_services
+            else "- Related service 1\n- Related service 2"
+        )
+
+        hub_prompt = (
+            f"You are an expert SEO content writer creating a hub (service landing page) "
+            f"for '{service_name}'.\n\n"
+            f"PRIMARY KEYWORD: {page_data.get('primary_keyword', '')}\n"
+            f"TARGET AUDIENCE: {page_data.get('target_audience', '')}\n\n"
+            f"H2 SECTIONS TO INCLUDE:\n{sections_text}\n\n"
+            f"TRUST FACTORS TO INCORPORATE:\n{trust_text}\n\n"
+            f"RELATED SERVICES (for internal linking):\n{related_text}\n\n"
+            f"REQUIREMENTS:\n"
+            f"- Write a comprehensive {page_data.get('page_type', 'landing_page')} "
+            f"  (1,500–2,500 words)\n"
+            f"- Include an H1, multiple H2 sections, a trust factors section, "
+            f"  client testimonials, a clear CTA, and related services links\n"
+            f"- Naturally incorporate the primary keyword and secondary keywords: "
+            f"  {page_data.get('secondary_keywords', '')}\n"
+            f"- Use {page_data.get('depth_level', 'intermediate')}-depth coverage\n"
+            f"- Support claims with: {page_data.get('data_point', '')}\n\n"
+            f"Write the full page content now:"
+        )
+        return self._render_template(hub_prompt, substitutions)
+
+    def build_spoke_prompts(
+        self,
+        hub_page_data: dict[str, Any],
+        spoke_topics: list[str],
+    ) -> list[dict[str, Any]]:
+        """
+        Return a list of prompt dicts for generating spoke blog posts that
+        link back to a hub page.
+
+        Each spoke prompt dict contains:
+        - ``topic`` — the spoke topic
+        - ``prompt`` — the assembled LLM prompt string
+        - ``hub_keyword`` — the hub's primary keyword for internal linking
+
+        Parameters
+        ----------
+        hub_page_data:
+            Page data dict for the hub page (same format as ``build_hub_prompt``).
+        spoke_topics:
+            List of spoke article topic strings (3–5 recommended).
+
+        Returns
+        -------
+        list[dict[str, Any]]
+        """
+        self._validate_page_data(hub_page_data)
+        hub_keyword = hub_page_data.get("primary_keyword", "")
+        hub_url_placeholder = (
+            f"[link to: {hub_page_data.get('topic', 'the main service page')}]"
+        )
+        service_name = hub_page_data.get("service_name", hub_page_data.get("topic", ""))
+
+        results: list[dict[str, Any]] = []
+        for i, spoke_topic in enumerate(spoke_topics, 1):
+            prompt = (
+                f"You are an expert SEO content writer creating a spoke blog post "
+                f"that supports the hub page about '{service_name}'.\n\n"
+                f"SPOKE TOPIC: {spoke_topic}\n"
+                f"HUB PAGE KEYWORD: {hub_keyword}\n"
+                f"TARGET AUDIENCE: {hub_page_data.get('target_audience', '')}\n\n"
+                f"REQUIREMENTS:\n"
+                f"- Write a focused blog post (1,000–1,500 words) on: {spoke_topic}\n"
+                f"- Include 2–3 natural internal links back to the hub page "
+                f"  using anchor text variations of '{hub_keyword}'\n"
+                f"  Reference the hub page as: {hub_url_placeholder}\n"
+                f"- Use a unique angle not covered in the hub page\n"
+                f"- Depth level: {hub_page_data.get('depth_level', 'intermediate')}\n"
+                f"- Reference this data point where relevant: "
+                f"  {hub_page_data.get('data_point', '')}\n"
+                f"- Secondary keywords to include: "
+                f"  {hub_page_data.get('secondary_keywords', '')}\n\n"
+                f"Write the full spoke blog post now:"
+            )
+            results.append(
+                {
+                    "topic": spoke_topic,
+                    "spoke_number": i,
+                    "hub_keyword": hub_keyword,
+                    "prompt": prompt,
+                }
+            )
+
+        return results
+
+    def build_thought_leadership_prompt(
+        self,
+        page_data: dict[str, Any],
+        guide_title: str | None = None,
+    ) -> str:
+        """
+        Return a prompt for generating a long-form thought leadership guide
+        (15–20 pages / 5,000–7,000 words) in the 'Ultimate Guide to X' format.
+
+        Parameters
+        ----------
+        page_data:
+            Standard page data dictionary.
+        guide_title:
+            Optional override for the guide title.  Defaults to
+            ``'Ultimate Guide to {topic}'``.
+
+        Returns
+        -------
+        str
+        """
+        self._validate_page_data(page_data)
+        substitutions = self._build_substitutions(page_data)
+        topic = page_data.get("topic", "")
+        title = guide_title or f"Ultimate Guide to {topic}"
+        keyword = page_data.get("primary_keyword", "")
+
+        prompt = (
+            f"You are an expert content strategist writing a comprehensive thought "
+            f"leadership guide.\n\n"
+            f"GUIDE TITLE: {title}\n"
+            f"PRIMARY KEYWORD: {keyword}\n"
+            f"AUDIENCE: {page_data.get('target_audience', '')}\n\n"
+            f"GUIDE REQUIREMENTS:\n"
+            f"- Length: 5,000–7,000 words (15–20 pages equivalent)\n"
+            f"- Structure: Executive summary, 6–8 chapters, conclusion, glossary\n"
+            f"- Each chapter: 600–900 words with H2 heading, body, and key takeaway\n"
+            f"- Unique perspective: {page_data.get('unique_perspective', '')}\n"
+            f"- Anchor data point: {page_data.get('data_point', '')}\n"
+            f"- Authority source: {page_data.get('authority_source', '')}\n"
+            f"- Technical term to define and use correctly: "
+            f"  {page_data.get('primary_technical_term', '')}\n"
+            f"- Depth level: {page_data.get('depth_level', 'deep')}\n\n"
+            f"TONE & STYLE:\n"
+            f"- Write for: {page_data.get('target_audience', '')}\n"
+            f"- Avoid generic statements — every claim must be substantiated\n"
+            f"- Include original frameworks, named models, or proprietary methodologies\n"
+            f"- Add a 'Further Reading' section at the end\n\n"
+            f"Write the complete guide now:"
+        )
+        return self._render_template(prompt, substitutions)
+
     def _load_prompt(self, relative_path: str) -> str:
         path = _PROMPTS_DIR / relative_path
         return path.read_text(encoding="utf-8")

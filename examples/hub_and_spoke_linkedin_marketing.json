@@ -1,0 +1,46 @@
+{
+  "hub_page_data": {
+    "topic": "LinkedIn Marketing for B2B Companies",
+    "service_name": "LinkedIn Marketing",
+    "target_audience": "B2B marketing directors, CMOs, and founders at companies with 10-500 employees",
+    "search_intent_type": "commercial",
+    "primary_keyword": "LinkedIn marketing agency",
+    "secondary_keywords": "LinkedIn lead generation, B2B LinkedIn strategy, executive LinkedIn ghostwriting, LinkedIn content marketing",
+    "niche": "B2B digital marketing",
+    "niche_terminology": "SSI (Social Selling Index), LinkedIn algorithm, dwell time, content velocity, employee advocacy, dark social",
+    "unique_perspective": "Most LinkedIn agencies optimise for impressions, but B2B revenue comes from profile visits converting to connection requests — companies that optimise their comment strategy (not just post frequency) generate 3× more inbound pipeline than those focused on post volume alone.",
+    "data_point": "LinkedIn's internal data shows that personalised connection requests accepted within 24 hours of a prospect engaging with your content have a 68% acceptance rate vs. 23% for cold outreach — making content a qualifying mechanism before direct outreach.",
+    "named_tool": "LinkedIn Sales Navigator",
+    "failure_mode": "Marketing teams invest in LinkedIn content without aligning it to Sales Navigator sequences, creating brand awareness that never converts to pipeline because content and outreach operate as separate silos.",
+    "depth_level": "intermediate",
+    "experience_signal": "Managing LinkedIn presence for 40+ B2B clients generating $50M+ in attributed pipeline annually",
+    "primary_technical_term": "SSI",
+    "authority_source": "LinkedIn Marketing Solutions B2B Marketing Benchmark Report 2024",
+    "page_type": "landing_page",
+    "tone_register": "professional",
+    "h1": "LinkedIn Marketing Agency: B2B Lead Generation Through Strategic Content",
+    "h2_sections": [
+      "Why LinkedIn Outperforms Other B2B Channels for Lead Quality",
+      "Our LinkedIn Marketing Strategy",
+      "Executive Thought Leadership on LinkedIn",
+      "LinkedIn Content Calendar and Distribution",
+      "LinkedIn Paid Amplification",
+      "Measuring LinkedIn Marketing ROI"
+    ],
+    "trust_factors": [
+      "Managed $10M+ in LinkedIn ad spend",
+      "Average 4× improvement in LinkedIn engagement rate",
+      "Clients include Fortune 500 and scale-up brands",
+      "LinkedIn Marketing Solutions certified partners"
+    ],
+    "related_services": ["Digital PR", "Investor Marketing Agency", "Capital Raise Advisory"]
+  },
+  "spoke_topics": [
+    "LinkedIn Algorithm 2024: How to Maximise Organic Reach Without Paying for Distribution",
+    "Executive LinkedIn Ghostwriting: How to Build a C-Suite Thought Leadership Presence",
+    "LinkedIn vs. Email Outreach: Which Channel Generates Better B2B Pipeline?",
+    "How to Build a LinkedIn Content Calendar That Drives Consistent Lead Flow",
+    "LinkedIn Sales Navigator and Content Strategy: Closing the Alignment Gap"
+  ],
+  "guide_title": "Ultimate Guide to LinkedIn Marketing for B2B: From Profile Optimisation to Pipeline Generation"
+}

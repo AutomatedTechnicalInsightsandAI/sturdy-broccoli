@@ -1,0 +1,53 @@
+{
+  "service_topic": "Digital PR Agency",
+  "our_strengths": [
+    "Data journalism approach — every campaign built on original research",
+    "Relationships with 200+ journalists across technology, finance, and lifestyle beats",
+    "Average 6-week turnaround from brief to coverage",
+    "Full attribution tracking from link to organic traffic to conversion"
+  ],
+  "competitors": [
+    {
+      "name": "Propellernet",
+      "url": "https://www.propellernet.co.uk/services/digital-pr/",
+      "page_title": "Digital PR Agency — Propellernet",
+      "h1": "Digital PR That Earns Links and Builds Brands",
+      "h2_headings": [
+        "Our Digital PR Approach",
+        "What Is Digital PR?",
+        "Why Choose Propellernet for Digital PR?",
+        "Our Digital PR Results"
+      ],
+      "keywords": ["digital PR agency", "link building", "earned media", "PR campaigns"],
+      "content": "Propellernet is an award-winning digital PR agency. We have 15 years experience creating campaigns that earn links from top-tier publications. Our process combines creative ideation with data-led insights. We have worked with brands including Booking.com, Oxfam, and Lonely Planet. Our team of 80+ specialists delivers campaigns at scale. Results include coverage in BBC, Guardian, and Forbes."
+    },
+    {
+      "name": "Rise at Seven",
+      "url": "https://riseatseven.com/services/digital-pr/",
+      "page_title": "Digital PR Services — Rise at Seven",
+      "h1": "Digital PR Services: Speed, Scale, Creativity",
+      "h2_headings": [
+        "Fast-Turn Digital PR",
+        "Reactive PR at Scale",
+        "Creative Campaign PR",
+        "Measuring Digital PR ROI"
+      ],
+      "keywords": ["digital PR", "reactive PR", "creative PR agency", "link building agency", "SEO PR"],
+      "content": "Rise at Seven is one of the UK's fastest-growing digital PR agencies. We specialise in reactive PR, creative campaigns, and data-led stunts that generate coverage in national and international media. Our team of 100 operates across the UK and US. Clients include PrettyLittleThing, Frasers Group, and JD Sports."
+    },
+    {
+      "name": "Kaizen",
+      "url": "https://www.kaizen.co.uk/digital-pr/",
+      "page_title": "Digital PR Agency London — Kaizen",
+      "h1": "Digital PR Agency That Drives Real Business Impact",
+      "h2_headings": [
+        "What Is Digital PR?",
+        "Our Digital PR Services",
+        "Why Digital PR Matters for SEO",
+        "Digital PR Case Studies"
+      ],
+      "keywords": ["digital PR agency London", "SEO link building", "content marketing PR", "media relations"],
+      "content": "Kaizen is a London-based digital PR and SEO agency. We blend technical SEO expertise with creative PR to build authority and drive organic traffic. Our campaigns appear in publications including The Telegraph, Independent, and TechCrunch. We have 10 years of experience in digital PR."
+    }
+  ]
+}
