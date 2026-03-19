@@ -154,7 +154,7 @@ class TestListConnections:
         publisher.add_connection("https://other.com", "u", "p")
         filtered = publisher.list_connections(client_id=cid)
         assert len(filtered) == 1
-        assert "acme.com" in filtered[0]["site_url"]
+        assert filtered[0]["site_url"] == "https://acme.com"
 
 
 class TestRemoveConnection:

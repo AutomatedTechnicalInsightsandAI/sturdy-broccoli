@@ -57,8 +57,15 @@ _POSITION_CTR = {
 # ---------------------------------------------------------------------------
 # Lightweight key obfuscation (same approach as wordpress_publisher)
 # ---------------------------------------------------------------------------
+# The obfuscation salt can be overridden by setting the environment variable
+# ``STURDY_SEMRUSH_OBFUSCATION_SALT`` to a hex-encoded bytes value.
+# Using a non-default salt does NOT make this cryptographically secure.
 
-_OBFUSCATION_SALT = b"sturdy-broccoli-semrush"
+import os as _os
+
+_OBFUSCATION_SALT = bytes.fromhex(
+    _os.environ.get("STURDY_SEMRUSH_OBFUSCATION_SALT", "")
+) if _os.environ.get("STURDY_SEMRUSH_OBFUSCATION_SALT") else b"sturdy-broccoli-semrush"
 
 
 def _obfuscate(plaintext: str) -> str:

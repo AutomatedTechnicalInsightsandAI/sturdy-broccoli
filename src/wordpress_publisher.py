@@ -40,8 +40,16 @@ logger = logging.getLogger(__name__)
 # NOTE: This is NOT real encryption.  Production deployments should replace
 # the obfuscation helpers below with a proper key-management solution such
 # as Google Cloud KMS or HashiCorp Vault.
+#
+# The obfuscation salt can be overridden by setting the environment variable
+# ``STURDY_WP_OBFUSCATION_SALT`` to a custom bytes value (hex-encoded string).
+# Using a non-default salt does NOT make this cryptographically secure.
 
-_OBFUSCATION_SALT = b"sturdy-broccoli-wp"
+import os as _os
+
+_OBFUSCATION_SALT = bytes.fromhex(
+    _os.environ.get("STURDY_WP_OBFUSCATION_SALT", "")
+) if _os.environ.get("STURDY_WP_OBFUSCATION_SALT") else b"sturdy-broccoli-wp"
 
 
 def _obfuscate(plaintext: str) -> str:

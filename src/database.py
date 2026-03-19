@@ -1571,7 +1571,7 @@ class Database:
         where = "WHERE " + " AND ".join(clauses) if clauses else ""
         with self._connect() as conn:
             rows = conn.execute(
-                f"SELECT * FROM wordpress_posts {where} ORDER BY created_at DESC",
+                f"SELECT * FROM wordpress_posts {where} ORDER BY created_at DESC",  # noqa: S608
                 params,
             ).fetchall()
             return [dict(r) for r in rows]
@@ -1771,7 +1771,7 @@ class Database:
         where = "WHERE " + " AND ".join(clauses) if clauses else ""
         with self._connect() as conn:
             rows = conn.execute(
-                f"SELECT * FROM ranking_history {where} ORDER BY recorded_date DESC",
+                f"SELECT * FROM ranking_history {where} ORDER BY recorded_date DESC",  # noqa: S608
                 params,
             ).fetchall()
             return [dict(r) for r in rows]
