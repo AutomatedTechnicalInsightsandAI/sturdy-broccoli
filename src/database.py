@@ -203,7 +203,16 @@ CREATE INDEX IF NOT EXISTS idx_page_revisions_page   ON page_revisions(page_id);
 # Agency workflow schema DDL (client pipeline + revenue tracking)
 # ---------------------------------------------------------------------------
 
-_AGENCY_SCHEMA_SQL = """
+# Valid status values for staging_batches.status — used in the CHECK constraint,
+# the revenue-stats query, and agency_dashboard.py's advance_batch_status validation.
+STAGING_BATCH_STATUSES = ("draft", "staged", "approved", "deployed")
+# Valid status values for staging_reviews.status
+STAGING_REVIEW_STATUSES = ("pending", "approved", "rejected")
+
+_STAGING_BATCH_STATUS_CHECK = ",".join(f"'{s}'" for s in STAGING_BATCH_STATUSES)
+_STAGING_REVIEW_STATUS_CHECK = ",".join(f"'{s}'" for s in STAGING_REVIEW_STATUSES)
+
+_AGENCY_SCHEMA_SQL = f"""
 PRAGMA foreign_keys=ON;
 
 CREATE TABLE IF NOT EXISTS staging_batches (
@@ -213,7 +222,7 @@ CREATE TABLE IF NOT EXISTS staging_batches (
     total_pages     INTEGER NOT NULL DEFAULT 0,
     approved_count  INTEGER NOT NULL DEFAULT 0,
     status          TEXT    NOT NULL DEFAULT 'draft'
-                            CHECK(status IN ('draft','staged','approved','deployed')),
+                            CHECK(status IN ({_STAGING_BATCH_STATUS_CHECK})),
     created_date    TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
     deployed_url    TEXT    NOT NULL DEFAULT '',
     gcp_bucket_path TEXT    NOT NULL DEFAULT '',
@@ -225,7 +234,7 @@ CREATE TABLE IF NOT EXISTS staging_reviews (
     batch_id        INTEGER NOT NULL REFERENCES staging_batches(id) ON DELETE CASCADE,
     client_comment  TEXT    NOT NULL DEFAULT '',
     status          TEXT    NOT NULL DEFAULT 'pending'
-                            CHECK(status IN ('pending','approved','rejected')),
+                            CHECK(status IN ({_STAGING_REVIEW_STATUS_CHECK})),
     created_date    TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
 );
 

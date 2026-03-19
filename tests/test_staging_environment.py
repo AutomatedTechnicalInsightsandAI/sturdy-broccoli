@@ -60,7 +60,7 @@ class TestGetBatchGallery:
         review_manager.update_page_status(pages[0]["id"], "approved")
         gallery = env.get_batch_gallery(batch_id, status_filter="approved")
         assert len(gallery["pages"]) == 1
-    def test_nonexistent_batch_returns_none(self, env: StagingEnvironment) -> None:
+    def test_nonexistent_batch_returns_empty_dict(self, env: StagingEnvironment) -> None:
         gallery = env.get_batch_gallery(99999)
         assert gallery["batch"] is None
         assert gallery["pages"] == []

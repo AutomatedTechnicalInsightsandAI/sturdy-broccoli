@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from .database import Database
+from .database import Database, STAGING_BATCH_STATUSES
 
 
 class AgencyDashboard:
@@ -175,7 +175,7 @@ class AgencyDashboard:
         gcp_bucket_path:
             GCS path (set when status becomes ``'deployed'``).
         """
-        valid = {"draft", "staged", "approved", "deployed"}
+        valid = set(STAGING_BATCH_STATUSES)
         if new_status not in valid:
             raise ValueError(
                 f"Invalid batch status '{new_status}'. Must be one of: {sorted(valid)}"
