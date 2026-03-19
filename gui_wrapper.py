@@ -15,8 +15,8 @@ from src.prompt_builder import PromptBuilder
 from src.template_manager import TemplateManager
 from src.competitor_analyzer import CompetitorAnalyzer
 from src.multi_format_generator import MultiFormatGenerator
-from src.database import Database
-from src.staging_review import StagingReviewManager
+from src.staging_manager import StagingManager
+from src.tailwind_templates import list_templates as _list_tpl_names
 
 st.set_page_config(
     page_title="Sturdy Broccoli — Enterprise SEO Content Factory",
@@ -26,28 +26,13 @@ st.set_page_config(
 
 st.title("🥦 Sturdy Broccoli — Enterprise SEO Content Factory")
 
-# ---------------------------------------------------------------------------
-# Shared database / manager (cached so it's initialised once per session)
-# ---------------------------------------------------------------------------
-
-
-@st.cache_resource
-def _get_manager() -> StagingReviewManager:
-    db = Database()
-    db.init_schema()
-    return StagingReviewManager(db)
-
-
-_mgr = _get_manager()
-
-tab_prompt, tab_hub, tab_competitor, tab_multiformat, tab_template, tab_batch, tab_deploy = st.tabs([
+tab_prompt, tab_hub, tab_competitor, tab_multiformat, tab_template, tab_factory = st.tabs([
     "📝 Prompt Generator",
     "🕸️ Hub & Spoke",
     "🔍 Competitor Analysis",
     "📢 Multi-Format",
     "🏗️ Landing Page Templates",
-    "📋 Batch Manager",
-    "🚀 Deployer",
+    "🏭 SEO Site Factory",
 ])
 
 # ---------------------------------------------------------------------------
@@ -411,691 +396,502 @@ with tab_template:
             page_data = tm.render_page_data(selected_service)
             st.json(page_data)
 
-
 # ---------------------------------------------------------------------------
-# Helpers shared across Batch Manager and Deployer tabs
+# Tab 6: SEO Site Factory  (Three-Tier Batch Pipeline)
 # ---------------------------------------------------------------------------
 
-_QUALITY_BADGE_THRESHOLDS = {
-    "authority":   ("Authority",   "\U0001f7e2", "\U0001f7e1", "\U0001f534"),
-    "semantic":    ("Semantic",    "\U0001f7e2", "\U0001f7e1", "\U0001f534"),
-    "structure":   ("Structure",   "\U0001f7e2", "\U0001f7e1", "\U0001f534"),
-    "engagement":  ("Engagement",  "\U0001f535", "\U0001f7e1", "\U0001f534"),
-    "uniqueness":  ("Uniqueness",  "\U0001f7e2", "\U0001f7e1", "\U0001f534"),
+# ── Session-state initialisation ─────────────────────────────────────────────
+
+if "factory_batch_id" not in st.session_state:
+    st.session_state.factory_batch_id = None
+if "factory_selected_pages" not in st.session_state:
+    st.session_state.factory_selected_pages = []
+if "factory_preview_page_id" not in st.session_state:
+    st.session_state.factory_preview_page_id = None
+if "factory_deploy_manifest" not in st.session_state:
+    st.session_state.factory_deploy_manifest = None
+
+_TEMPLATE_DISPLAY = _list_tpl_names()
+_TEMPLATE_KEYS = list(_TEMPLATE_DISPLAY.keys())
+_TEMPLATE_LABELS = [_TEMPLATE_DISPLAY[k] for k in _TEMPLATE_KEYS]
+_STATUS_COLORS = {
+    "pending_review": "🔴",
+    "reviewed": "🟡",
+    "approved": "🟢",
+    "deployed": "🔵",
+    "archived": "⚫",
 }
-
-_STATUS_EMOJI = {
-    "draft":          "\U0001f4dd",
-    "approved":       "\u2705",
-    "needs_revision": "\u26a0\ufe0f",
-    "rejected":       "\u274c",
-    "deployed":       "\U0001f680",
-}
+_STATUS_ORDER = ["pending_review", "reviewed", "approved", "deployed", "archived"]
 
 
-def _quality_badge(metric: str, score: float) -> str:
-    label, high, mid, low = _QUALITY_BADGE_THRESHOLDS.get(
-        metric, (metric.title(), "\U0001f7e2", "\U0001f7e1", "\U0001f534")
-    )
-    icon = high if score >= 90 else (mid if score >= 70 else low)
-    return f"{icon} {label}: {score:.0f}/100"
+@st.cache_resource
+def _get_staging_manager() -> StagingManager:
+    return StagingManager()
 
 
-def _render_page_tile(page: dict, selected_ids: list, mgr: object) -> None:
-    page_id = page["id"]
+_mgr = _get_staging_manager()
+
+
+def _qs_badge(scores: dict) -> str:
+    """Return a short quality score string for tile display."""
+    if not scores:
+        return "N/A"
+    overall = scores.get("overall", 0)
+    color = "🟢" if overall >= 70 else ("🟡" if overall >= 40 else "🔴")
+    return f"{color} {overall}/100"
+
+
+def _render_batch_tile(page: dict, col) -> None:
+    """Render a single page tile inside the given Streamlit column."""
+    pid = page["id"]
+    status_icon = _STATUS_COLORS.get(page["status"], "⚪")
     qs = page.get("quality_scores") or {}
+    badge = _qs_badge(qs)
+    is_selected = pid in st.session_state.factory_selected_pages
 
-    col_check, col_title = st.columns([1, 10])
-    with col_check:
-        checked = st.checkbox(
-            "",
-            value=page_id in selected_ids,
-            key=f"sel_{page_id}",
-            label_visibility="collapsed",
-        )
-        if checked and page_id not in selected_ids:
-            selected_ids.append(page_id)
-        elif not checked and page_id in selected_ids:
-            selected_ids.remove(page_id)
+    with col:
+        with st.container(border=True):
+            # Header row: checkbox + status
+            hcol1, hcol2 = st.columns([3, 1])
+            with hcol1:
+                checked = st.checkbox(
+                    f"{status_icon} **{page['title'][:45]}{'…' if len(page['title']) > 45 else ''}**",
+                    value=is_selected,
+                    key=f"sel_{pid}",
+                )
+            with hcol2:
+                st.caption(page["status"].replace("_", " ").title())
 
-    with col_title:
-        status_icon = _STATUS_EMOJI.get(page.get("review_status", "draft"), "\U0001f4dd")
-        st.markdown(f"**{status_icon} {page.get('title', 'Untitled')}**")
+            # Update selection list
+            if checked and pid not in st.session_state.factory_selected_pages:
+                st.session_state.factory_selected_pages.append(pid)
+            elif not checked and pid in st.session_state.factory_selected_pages:
+                st.session_state.factory_selected_pages.remove(pid)
 
-    h1 = page.get("h1_content") or ""
-    if h1:
-        st.caption(f'H1: "{h1[:80]}{"..." if len(h1) > 80 else ""}"')
+            # Content preview
+            st.caption(f"🔑 {page.get('primary_keyword', '—')}")
+            h1 = page.get("h1_content") or page.get("title", "")
+            st.markdown(f"**H1:** {h1[:70]}{'…' if len(h1) > 70 else ''}")
+            desc = page.get("meta_description", "")
+            if desc:
+                st.caption(desc[:100] + ("…" if len(desc) > 100 else ""))
 
-    if qs:
-        badge_cols = st.columns(5)
-        for idx, metric in enumerate(
-            ["authority", "semantic", "structure", "engagement", "uniqueness"]
-        ):
-            score = qs.get(metric, 0)
-            if score:
-                badge_cols[idx].caption(_quality_badge(metric, score))
+            # Template + quality row
+            tpl_name = _TEMPLATE_DISPLAY.get(page.get("assigned_template", ""), page.get("assigned_template", ""))
+            qcol1, qcol2 = st.columns(2)
+            with qcol1:
+                st.caption(f"🏗️ {tpl_name}")
+            with qcol2:
+                st.caption(f"⭐ {badge}")
 
-    meta_col1, meta_col2, meta_col3 = st.columns(3)
-    with meta_col1:
-        if page.get("competitor_benchmark"):
-            st.caption(f"\U0001f4ca Benchmarked: {page['competitor_benchmark']}")
-    with meta_col2:
-        if page.get("template_display_name"):
-            st.caption(f"\U0001f3d7\ufe0f Template: {page['template_display_name']}")
-    with meta_col3:
-        overall = (qs or {}).get("overall", 0)
-        if overall:
-            st.caption(f"\u2b50 Overall: {overall:.0f}/100")
-
-    act_col1, act_col2, act_col3, act_col4 = st.columns([3, 1, 1, 1])
-    with act_col1:
-        status_options = ["draft", "approved", "needs_revision", "rejected"]
-        current = page.get("review_status", "draft")
-        idx = status_options.index(current) if current in status_options else 0
-        new_status = st.selectbox(
-            "Status",
-            options=status_options,
-            index=idx,
-            key=f"status_{page_id}",
-            label_visibility="collapsed",
-        )
-        if new_status != current:
-            if st.button("Apply", key=f"apply_status_{page_id}"):
-                mgr.update_page_status(page_id, new_status)
-                st.rerun()
-
-    with act_col2:
-        if st.button("\u270f\ufe0f Edit", key=f"edit_{page_id}"):
-            st.session_state["preview_page_id"] = page_id
-            st.session_state["preview_mode"] = "edit"
-
-    with act_col3:
-        if st.button("\U0001f441\ufe0f View", key=f"view_{page_id}"):
-            st.session_state["preview_page_id"] = page_id
-            st.session_state["preview_mode"] = "view"
-
-    with act_col4:
-        if st.button("\U0001f5d1\ufe0f", key=f"del_{page_id}", help="Remove from batch"):
-            st.session_state[f"confirm_delete_{page_id}"] = True
-
-    if st.session_state.get(f"confirm_delete_{page_id}"):
-        st.warning(f"Delete **{page.get('title')}**?")
-        d_c1, d_c2 = st.columns(2)
-        with d_c1:
-            if st.button("Yes, delete", key=f"confirm_del_yes_{page_id}"):
-                mgr.delete_page(page_id)
-                st.session_state.pop(f"confirm_delete_{page_id}", None)
-                st.rerun()
-        with d_c2:
-            if st.button("Cancel", key=f"confirm_del_no_{page_id}"):
-                st.session_state.pop(f"confirm_delete_{page_id}", None)
-                st.rerun()
-
-    st.divider()
+            # Action buttons
+            acol1, acol2, acol3 = st.columns(3)
+            with acol1:
+                if st.button("👁 Preview", key=f"preview_{pid}", use_container_width=True):
+                    st.session_state.factory_preview_page_id = pid
+                    st.rerun()
+            with acol2:
+                if page["status"] in ("pending_review", "reviewed"):
+                    if st.button("✅ Approve", key=f"approve_{pid}", use_container_width=True):
+                        _mgr.approve_pages([pid])
+                        st.rerun()
+            with acol3:
+                if st.button("🗑 Delete", key=f"delete_{pid}", use_container_width=True):
+                    _mgr.delete_page(pid)
+                    if pid in st.session_state.factory_selected_pages:
+                        st.session_state.factory_selected_pages.remove(pid)
+                    st.rerun()
 
 
-# ---------------------------------------------------------------------------
-# Tab 6: Batch Manager
-# ---------------------------------------------------------------------------
-
-with tab_batch:
-    import random as _random
-
-    st.header("\U0001f4cb Batch Manager")
+with tab_factory:
+    st.header("🏭 SEO Site Factory")
     st.caption(
-        "Review, approve, and manage generated content pages before deployment. "
-        "Every page must pass human review \u2014 no auto-publish."
+        "Three-tier pipeline: Generate → Stage → Deploy. "
+        "Manage 50+ landing pages from generation through deployment."
     )
 
-    for _k, _v in [
-        ("bm_selected_ids", []),
-        ("preview_page_id", None),
-        ("preview_mode", "view"),
-    ]:
-        if _k not in st.session_state:
-            st.session_state[_k] = _v
+    # ── Preview modal (rendered above the dashboard when a page is selected) ──
+    if st.session_state.factory_preview_page_id is not None:
+        pid = st.session_state.factory_preview_page_id
+        page = _mgr.get_page(pid)
+        if page:
+            with st.container(border=True):
+                st.subheader(f"📄 Full Preview — {page['title']}")
+                close_col, tpl_col, color_col, cta_col = st.columns([1, 2, 1, 2])
+                with close_col:
+                    if st.button("✕ Close Preview", key="close_preview"):
+                        st.session_state.factory_preview_page_id = None
+                        st.rerun()
 
-    with st.sidebar:
-        st.markdown("### \U0001f4e6 Batches")
-        batches = _mgr.list_batches()
-        batch_names = [f"{b['name']} (#{b['id']})" for b in batches]
+                preview_state = page.get("preview_state") or {}
+                current_tpl = preview_state.get("current_layout", page.get("assigned_template", "modern_saas"))
+                current_color = preview_state.get("color_override", "blue")
+                current_cta = preview_state.get("cta_link", "#get-started")
 
-        if batches:
-            selected_batch_label = st.selectbox(
-                "Select Batch", batch_names, key="bm_batch_select"
-            )
-            selected_batch_idx = batch_names.index(selected_batch_label)
-            active_batch = batches[selected_batch_idx]
-        else:
-            active_batch = None
-
-        st.markdown("---")
-        st.markdown("### \u2795 New Batch")
-        new_batch_name = st.text_input("Batch name", key="bm_new_batch_name")
-        new_batch_desc = st.text_input("Description (optional)", key="bm_new_batch_desc")
-        if st.button("Create Batch", key="bm_create_batch"):
-            if new_batch_name.strip():
-                _mgr.create_batch(new_batch_name.strip(), new_batch_desc.strip())
-                st.success(f"Batch '{new_batch_name}' created!")
-                st.rerun()
-            else:
-                st.error("Batch name is required.")
-
-        st.markdown("---")
-        if active_batch:
-            st.markdown("### Add Demo Page")
-            if st.button("Add sample page", key="bm_add_sample"):
-                _services = [
-                    "NFT Consulting", "Local SEO", "Digital PR",
-                    "LinkedIn Marketing", "Capital Raise Advisory",
-                    "Investor Marketing", "GEO / AI SEO", "E-commerce SEO",
-                ]
-                _svc = _random.choice(_services)
-                _mgr.add_page(
-                    batch_id=active_batch["id"],
-                    title=f"{_svc} Services",
-                    h1_content=f"Expert {_svc} for Growth-Stage Companies",
-                    meta_title=f"{_svc} | CrowdCreate",
-                    meta_description=(
-                        f"CrowdCreate delivers results-driven {_svc} "
-                        "tailored to your market."
-                    ),
-                    content_markdown=(
-                        f"## What We Do\nWe provide {_svc}.\n\n"
-                        "## Why Choose Us\nProven track record."
-                    ),
-                    template_name=_random.choice(
-                        ["modern_saas", "professional_service", "enterprise"]
-                    ),
-                    quality_scores={
-                        "authority":   _random.randint(70, 98),
-                        "semantic":    _random.randint(65, 95),
-                        "structure":   _random.randint(75, 99),
-                        "engagement":  _random.randint(60, 90),
-                        "uniqueness":  _random.randint(55, 90),
-                    },
-                    competitor_benchmark="consensys.net",
-                )
-                st.rerun()
-
-    if active_batch is None:
-        st.info("Create a batch using the sidebar to get started.")
-    else:
-        b = _mgr.get_batch(active_batch["id"])
-        if b is None:
-            st.warning("Batch not found.")
-        else:
-            st.subheader(f"\U0001f5c2\ufe0f {b['name']}")
-            if b.get("description"):
-                st.caption(b["description"])
-
-            mc1, mc2, mc3, mc4, mc5 = st.columns(5)
-            mc1.metric("Total Pages",              b.get("total_pages", 0))
-            mc2.metric("\u2705 Approved",          b.get("pages_approved", 0))
-            mc3.metric("\U0001f4dd Draft / Review", b.get("pages_draft", 0))
-            mc4.metric("\U0001f680 Deployed",      b.get("pages_deployed", 0))
-            mc5.metric("\u274c Rejected",          b.get("pages_rejected", 0))
-
-            _total = b.get("total_pages", 1) or 1
-            _approved = b.get("pages_approved", 0)
-            st.progress(
-                _approved / _total,
-                text=f"Approval progress: {_approved}/{_total}",
-            )
-
-            st.markdown("---")
-
-            fc1, fc2, fc3, fc4 = st.columns(4)
-            with fc1:
-                status_filter = st.selectbox(
-                    "Filter by status",
-                    ["All", "draft", "approved", "needs_revision", "rejected", "deployed"],
-                    key="bm_status_filter",
-                )
-            with fc2:
-                sort_by = st.selectbox(
-                    "Sort by",
-                    ["created_at", "title", "review_status", "last_modified_at"],
-                    key="bm_sort_by",
-                )
-            with fc3:
-                sort_dir = st.radio(
-                    "Order", ["ASC", "DESC"], horizontal=True, key="bm_sort_dir"
-                )
-            with fc4:
-                min_q = st.number_input(
-                    "Min quality score",
-                    min_value=0,
-                    max_value=100,
-                    value=0,
-                    key="bm_min_quality",
-                )
-
-            pages = _mgr.get_batch_pages(
-                b["id"],
-                status_filter=status_filter if status_filter != "All" else None,
-                sort_by=sort_by,
-                sort_dir=sort_dir,
-                min_quality=float(min_q) if min_q > 0 else None,
-            )
-
-            selected_ids: list = st.session_state["bm_selected_ids"]
-
-            sel_c1, sel_c2, sel_c3 = st.columns([2, 2, 6])
-            with sel_c1:
-                if st.checkbox("Select all", key="bm_select_all"):
-                    st.session_state["bm_selected_ids"] = [p["id"] for p in pages]
-                    selected_ids = st.session_state["bm_selected_ids"]
-            with sel_c2:
-                if st.button("Deselect all", key="bm_deselect_all"):
-                    st.session_state["bm_selected_ids"] = []
-                    selected_ids = []
-            with sel_c3:
-                if selected_ids:
-                    st.info(f"**{len(selected_ids)} page(s) selected**")
-
-            st.markdown("---")
-
-            if not pages:
-                st.info(
-                    "No pages match the current filters. "
-                    "Add sample pages using the sidebar."
-                )
-            else:
-                grid_cols = st.columns(2)
-                for _i, _page in enumerate(pages):
-                    with grid_cols[_i % 2]:
-                        _render_page_tile(_page, selected_ids, _mgr)
-
-            st.session_state["bm_selected_ids"] = selected_ids
-
-            # Preview / edit modal
-            preview_id = st.session_state.get("preview_page_id")
-            if preview_id:
-                preview_page = _mgr.get_page(preview_id)
-                if preview_page:
-                    st.markdown("---")
-                    _mode_lbl = (
-                        "\u270f\ufe0f Editing"
-                        if st.session_state["preview_mode"] == "edit"
-                        else "\U0001f441\ufe0f Previewing"
+                with tpl_col:
+                    tpl_idx = _TEMPLATE_KEYS.index(current_tpl) if current_tpl in _TEMPLATE_KEYS else 0
+                    chosen_tpl_label = st.selectbox(
+                        "Template",
+                        _TEMPLATE_LABELS,
+                        index=tpl_idx,
+                        key=f"modal_tpl_{pid}",
                     )
-                    st.subheader(f"{_mode_lbl}: {preview_page.get('title')}")
+                    chosen_tpl = _TEMPLATE_KEYS[_TEMPLATE_LABELS.index(chosen_tpl_label)]
 
-                    pm_tab_edit, pm_tab_preview, pm_tab_arch = st.tabs(
-                        [
-                            "\U0001f4dd Content Editor",
-                            "\U0001f5bc\ufe0f Live Preview",
-                            "\U0001f578\ufe0f Content Architecture",
+                with color_col:
+                    chosen_color = st.selectbox(
+                        "Brand Color",
+                        ["blue", "indigo", "purple", "green", "red", "orange", "teal", "slate"],
+                        index=["blue", "indigo", "purple", "green", "red", "orange", "teal", "slate"].index(current_color)
+                        if current_color in ["blue", "indigo", "purple", "green", "red", "orange", "teal", "slate"]
+                        else 0,
+                        key=f"modal_color_{pid}",
+                    )
+
+                with cta_col:
+                    chosen_cta = st.text_input("CTA Link", value=current_cta, key=f"modal_cta_{pid}")
+
+                # Split-screen: editor (left) + live preview (right)
+                editor_col, preview_col = st.columns([1, 1])
+
+                with editor_col:
+                    st.subheader("✏️ Markdown Editor")
+                    new_md = st.text_area(
+                        "Content (Markdown)",
+                        value=page.get("content_markdown", ""),
+                        height=400,
+                        key=f"md_editor_{pid}",
+                    )
+                    save_col, approve_col = st.columns(2)
+                    with save_col:
+                        if st.button("💾 Save", key=f"save_md_{pid}"):
+                            _mgr.update_page_markdown(pid, new_md)
+                            _mgr.save_preview_state(pid, template=chosen_tpl, color=chosen_color, cta_link=chosen_cta)
+                            st.success("Saved!")
+                            st.rerun()
+                    with approve_col:
+                        if page["status"] not in ("approved", "deployed"):
+                            if st.button("✅ Approve", key=f"modal_approve_{pid}"):
+                                _mgr.update_page_markdown(pid, new_md)
+                                _mgr.save_preview_state(pid, template=chosen_tpl, color=chosen_color, cta_link=chosen_cta)
+                                _mgr.approve_pages([pid])
+                                st.success("Approved!")
+                                st.rerun()
+
+                    # Quality score breakdown
+                    qs = page.get("quality_scores") or {}
+                    if qs:
+                        st.subheader("📊 Quality Scores")
+                        metrics = [
+                            ("Authority", qs.get("authority", 0)),
+                            ("Semantic Richness", qs.get("semantic", 0)),
+                            ("Structure", qs.get("structure", 0)),
+                            ("Engagement", qs.get("engagement", 0)),
+                            ("Uniqueness", qs.get("uniqueness", 0)),
                         ]
-                    )
+                        q1, q2, q3, q4, q5 = st.columns(5)
+                        for (label, val), qcol in zip(metrics, [q1, q2, q3, q4, q5]):
+                            qcol.metric(label, f"{val}/100")
 
-                    with pm_tab_edit:
-                        e_c1, e_c2 = st.columns(2)
-                        with e_c1:
-                            new_h1 = st.text_input(
-                                "H1",
-                                value=preview_page.get("h1_content") or "",
-                                key=f"ed_h1_{preview_id}",
-                            )
-                            new_meta_title = st.text_input(
-                                "Meta Title",
-                                value=preview_page.get("meta_title") or "",
-                                key=f"ed_mt_{preview_id}",
-                            )
-                            new_meta_desc = st.text_area(
-                                "Meta Description",
-                                value=preview_page.get("meta_description") or "",
-                                height=80,
-                                key=f"ed_md_{preview_id}",
-                            )
-                        with e_c2:
-                            _templates = _mgr.list_templates()
-                            _tmpl_names = [t["name"] for t in _templates]
-                            _tmpl_display = [t["display_name"] for t in _templates]
-                            _cur_tmpl = preview_page.get("template_name") or "modern_saas"
-                            _tmpl_idx = (
-                                _tmpl_names.index(_cur_tmpl)
-                                if _cur_tmpl in _tmpl_names
-                                else 0
-                            )
-                            new_tmpl = st.selectbox(
-                                "Template",
-                                options=_tmpl_names,
-                                format_func=lambda n: _tmpl_display[_tmpl_names.index(n)],
-                                index=_tmpl_idx,
-                                key=f"ed_tmpl_{preview_id}",
-                            )
-                            brand_color = st.color_picker(
-                                "Brand Colour Override",
-                                value=preview_page.get("brand_color_override") or "#2563EB",
-                                key=f"ed_color_{preview_id}",
-                            )
-                            cta_text = st.text_input(
-                                "CTA Text",
-                                value=preview_page.get("cta_text_override") or "Get Started Today",
-                                key=f"ed_cta_text_{preview_id}",
-                            )
-                            cta_link = st.text_input(
-                                "CTA Link",
-                                value=preview_page.get("cta_link_override") or "#contact",
-                                key=f"ed_cta_link_{preview_id}",
-                            )
-
-                        new_content = st.text_area(
-                            "Content (Markdown)",
-                            value=preview_page.get("content_markdown") or "",
-                            height=250,
-                            key=f"ed_content_{preview_id}",
+                with preview_col:
+                    st.subheader("🌐 Live Preview")
+                    try:
+                        html_preview = _mgr.render_page_preview(
+                            pid,
+                            template_override=chosen_tpl,
+                            color_override=chosen_color,
+                            cta_link_override=chosen_cta,
                         )
+                        st.components.v1.html(html_preview, height=500, scrolling=True)
+                    except Exception as exc:
+                        st.error(f"Preview error: {exc}")
 
-                        sc1, sc2, sc3 = st.columns(3)
-                        with sc1:
-                            if st.button("\U0001f4be Save Draft", key=f"save_{preview_id}"):
-                                _mgr.update_page_content(
-                                    preview_id,
-                                    h1_content=new_h1,
-                                    meta_title=new_meta_title,
-                                    meta_description=new_meta_desc,
-                                    content_markdown=new_content,
-                                    changed_by="user",
-                                    change_reason="UI edit",
-                                )
-                                _mgr.switch_template(preview_id, new_tmpl)
-                                _mgr.apply_branding_to_pages(
-                                    [preview_id],
-                                    brand_color=brand_color,
-                                    cta_text=cta_text,
-                                    cta_link=cta_link,
-                                )
-                                st.success("Saved!")
-                                st.rerun()
-                        with sc2:
-                            if st.button("\u21a9\ufe0f Revert", key=f"revert_{preview_id}"):
-                                _revs = _mgr.get_page_revisions(preview_id)
-                                if _revs:
-                                    _mgr.update_page_content(
-                                        preview_id,
-                                        content_markdown=_revs[0]["content_markdown"],
-                                        changed_by="user",
-                                        change_reason="Reverted",
-                                    )
-                                    st.success("Reverted to last saved version.")
-                                    st.rerun()
-                                else:
-                                    st.warning("No revision history yet.")
-                        with sc3:
-                            if st.button(
-                                "\u2716\ufe0f Close Editor", key=f"close_{preview_id}"
-                            ):
-                                st.session_state["preview_page_id"] = None
-                                st.rerun()
+        st.divider()
 
-                    with pm_tab_preview:
-                        import streamlit.components.v1 as _components
-                        from src.staging_review import _render_page_html as _rph
-
-                        _tmpl_row = _mgr.get_template(
-                            preview_page.get("template_name") or "modern_saas"
-                        )
-                        _tmpl_html = (
-                            _tmpl_row.get("template_html", "") if _tmpl_row else ""
-                        )
-                        _rendered = _rph(preview_page, _tmpl_html)
-                        _full_html = (
-                            "<!DOCTYPE html><html lang='en'><head>"
-                            "<meta charset='UTF-8'>"
-                            "<script src='https://cdn.tailwindcss.com'></script>"
-                            f"</head><body>{_rendered}</body></html>"
-                        )
-                        st.radio(
-                            "Preview device",
-                            ["Desktop (1200px)", "Tablet (768px)", "Mobile (375px)"],
-                            horizontal=True,
-                            key=f"device_{preview_id}",
-                        )
-                        _components.html(_full_html, height=600, scrolling=True)
-
-                    with pm_tab_arch:
-                        st.subheader("\U0001f578\ufe0f Hub & Spoke Architecture")
-                        _arch = _mgr.validate_hub_spoke_links(preview_page["batch_id"])
-
-                        _hub_e = next(
-                            (h for h in _arch["hub_pages"] if h["id"] == preview_id), None
-                        )
-                        _spk_e = next(
-                            (s for s in _arch["spoke_pages"] if s["id"] == preview_id), None
-                        )
-
-                        if _hub_e:
-                            st.success(
-                                f"\U0001f3af **HUB**: {preview_page['title']} "
-                                f"({_hub_e['spoke_count']} spoke(s))"
-                            )
-                        elif _spk_e:
-                            _hub_pg = _mgr.get_page(_spk_e["hub_id"])
-                            _hub_t = (
-                                _hub_pg["title"] if _hub_pg else f"Page {_spk_e['hub_id']}"
-                            )
-                            st.info(f"\U0001f4cc **SPOKE** \u2192 Hub: {_hub_t}")
-                        else:
-                            st.warning(
-                                "This page is not part of a hub-and-spoke cluster."
-                            )
-
-                        if _arch["link_statuses"]:
-                            st.markdown("**Internal Link Status:**")
-                            for _ls in _arch["link_statuses"]:
-                                _li = "\u2705" if _ls["status"] == "linked" else "\u26a0\ufe0f"
-                                st.markdown(
-                                    f"{_li} `{_ls['from_title']}` \u2192 "
-                                    f"`{_ls['to_title']}` "
-                                    f"({_ls['direction']}, anchor: *{_ls['anchor']}*)"
-                                )
-
-                        if _arch["issues"]:
-                            st.markdown("**\u26a0\ufe0f Issues:**")
-                            for _iss in _arch["issues"]:
-                                _si = (
-                                    "\U0001f534"
-                                    if _iss["severity"] == "red"
-                                    else "\U0001f7e1"
-                                )
-                                st.markdown(f"{_si} {_iss['message']}")
-
-                        if _arch["silo_violations"]:
-                            st.markdown("**\U0001f534 SILO Violations:**")
-                            for _sv in _arch["silo_violations"]:
-                                st.markdown(f"\U0001f534 {_sv['message']}")
-
-                        if _arch["is_healthy"]:
-                            st.success(
-                                "\u2705 Link structure is healthy \u2014 no SILO violations."
-                            )
-
-            # Batch actions (2+ pages selected)
-            if len(selected_ids) >= 2:
-                st.markdown("---")
-                with st.expander(
-                    f"\u26a1 BATCH ACTIONS \u2014 {len(selected_ids)} pages selected",
-                    expanded=True,
-                ):
-                    st.subheader("\U0001f3a8 Global Styles")
-                    ba_c1, ba_c2 = st.columns(2)
-                    with ba_c1:
-                        batch_color = st.color_picker(
-                            "Brand Primary Colour", value="#2563EB", key="ba_color"
-                        )
-                        st.caption("\u2139\ufe0f Affects CTA buttons and H1 underlines")
-                        batch_cta_text = st.text_input(
-                            "Global CTA Text", value="Get Started Today", key="ba_cta_text"
-                        )
-                        batch_cta_link = st.text_input(
-                            "Global CTA Link",
-                            value="https://example.com/contact",
-                            key="ba_cta_link",
-                        )
-                    with ba_c2:
-                        batch_font = st.selectbox(
-                            "Font Family",
-                            ["Poppins", "Inter", "Playfair Display", "Georgia", "Roboto"],
-                            key="ba_font",
-                        )
-                        batch_logo = st.text_input(
-                            "Logo URL (optional)",
-                            placeholder="https://cdn.example.com/logo.png",
-                            key="ba_logo",
-                        )
-
-                    if st.button(
-                        "\u2728 Apply Branding to Selected", key="ba_apply_branding"
-                    ):
-                        _mgr.apply_branding_to_pages(
-                            selected_ids,
-                            brand_color=batch_color,
-                            logo_url=batch_logo or None,
-                            cta_text=batch_cta_text,
-                            cta_link=batch_cta_link,
-                        )
-                        _mgr.update_batch_branding(
-                            b["id"],
-                            primary_color=batch_color,
-                            font_family=batch_font,
-                            global_cta_text=batch_cta_text,
-                            global_cta_link=batch_cta_link,
-                            logo_url=batch_logo or None,
-                        )
-                        st.success(
-                            f"\u2705 Branding applied to {len(selected_ids)} pages!"
-                        )
-                        st.rerun()
-
-                    st.markdown("---")
-                    st.subheader("\U0001f4cb Bulk Status")
-                    bulk_status = st.selectbox(
-                        "Set status for all selected",
-                        ["approved", "needs_revision", "rejected", "draft"],
-                        key="ba_bulk_status",
-                    )
-                    bulk_notes = st.text_input(
-                        "Reviewer notes (optional)", key="ba_bulk_notes"
-                    )
-                    if st.button("Apply Status to Selected", key="ba_apply_status"):
-                        _mgr.bulk_update_status(
-                            selected_ids, bulk_status, reviewer_notes=bulk_notes
-                        )
-                        st.success(
-                            f"\u2705 Marked {len(selected_ids)} page(s) as '{bulk_status}'."
-                        )
-                        st.session_state["bm_selected_ids"] = []
-                        st.rerun()
-
-                    st.markdown("---")
-                    st.subheader("\u2b07\ufe0f Export Selected")
-                    if st.button(
-                        "\U0001f4e6 Export as ZIP (HTML + CSV)", key="ba_export"
-                    ):
-                        _exp = _mgr.deploy_pages(selected_ids)
-                        st.download_button(
-                            label=f"\u2b07\ufe0f Download {_exp['page_count']} pages",
-                            data=_exp["zip_bytes"],
-                            file_name="batch_export.zip",
-                            mime="application/zip",
-                            key="ba_download",
-                        )
-                        st.success(
-                            f"\u2705 {_exp['page_count']} page(s) exported "
-                            "and marked as deployed."
-                        )
-                        st.session_state["bm_selected_ids"] = []
-                        st.rerun()
-
-
-# ---------------------------------------------------------------------------
-# Tab 7: Deployer
-# ---------------------------------------------------------------------------
-
-with tab_deploy:
-    st.header("\U0001f680 Deployer")
-    st.caption(
-        "Run pre-flight checks and deploy approved pages. "
-        "No page reaches \u2018deployed\u2019 without explicit approval."
-    )
-
-    _dep_batches = _mgr.list_batches()
-    if not _dep_batches:
-        st.info(
-            "No batches found. Create a batch in the Batch Manager tab first."
-        )
-    else:
-        _dep_batch_names = [f"{b['name']} (#{b['id']})" for b in _dep_batches]
-        _dep_batch_label = st.selectbox(
-            "Select Batch to Deploy", _dep_batch_names, key="dep_batch_select"
-        )
-        _dep_batch_idx = _dep_batch_names.index(_dep_batch_label)
-        _dep_batch = _dep_batches[_dep_batch_idx]
-
-        _app_pages = _mgr.get_batch_pages(_dep_batch["id"], status_filter="approved")
-
-        st.subheader(f"Approved pages ready to deploy: {len(_app_pages)}")
-
-        if not _app_pages:
-            st.warning(
-                "No approved pages in this batch. "
-                "Go to Batch Manager and approve pages before deploying."
+    # ── Deployment result display ────────────────────────────────────────────
+    if st.session_state.factory_deploy_manifest:
+        manifest = st.session_state.factory_deploy_manifest
+        with st.container(border=True):
+            st.subheader("🚀 Deployment Summary")
+            st.success(
+                f"✅ {manifest['deployed_count']} page(s) deployed at {manifest['deployed_at']}"
             )
-        else:
-            _dep_ids = [p["id"] for p in _app_pages]
+            if manifest.get("warnings"):
+                st.warning("⚠️ Warnings:\n" + "\n".join(f"- {w}" for w in manifest["warnings"]))
 
-            st.markdown("### \u2705 Pre-flight Checklist")
-            _pf = _mgr.run_preflight_checks(_dep_ids)
-            for _chk in _pf["checks"]:
-                _ci = "\u2705" if _chk["passed"] else "\u274c"
-                st.markdown(f"{_ci} **{_chk['name']}**")
-                st.caption(f"  {_chk['detail']}")
+            st.markdown("**Deployed URLs:**")
+            for p in manifest["pages"]:
+                st.markdown(f"- `{p['url']}` — {p['title']}")
 
-            if _pf["blocking_issues"]:
-                st.error(
-                    "\U0001f6ab Cannot deploy \u2014 blocking issues:\n"
-                    + "\n".join(f"\u2022 {i}" for i in _pf["blocking_issues"])
-                )
-            else:
-                st.success("\U0001f389 All pre-flight checks passed!")
-
-            st.markdown("---")
-            st.markdown("### \U0001f4cb Deployment Summary")
-            st.info(
-                f"You are about to publish **{len(_app_pages)} page(s)** "
-                f"from batch **\u2018{_dep_batch['name']}\u2019**."
-            )
-
-            with st.expander("Pages to be deployed"):
-                for _dp in _app_pages:
-                    _dqs = _dp.get("quality_scores") or {}
-                    st.markdown(
-                        f"- **{_dp['title']}**  "
-                        f"*(Overall: {_dqs.get('overall', 'N/A')}/100)*"
-                    )
-
-            _dep_by = st.text_input("Your name (for audit trail)", key="dep_deployed_by")
-
-            if st.button(
-                "\U0001f680 Deploy All Approved Pages",
-                key="dep_deploy_btn",
-                disabled=not _pf["passed"],
-            ):
-                with st.spinner(f"Deploying {len(_dep_ids)} pages\u2026"):
-                    _dr = _mgr.deploy_pages(_dep_ids, deployed_by=_dep_by)
-                st.success(
-                    f"\u2705 Successfully deployed {_dr['page_count']} page(s)!"
-                )
+            csv_data = _mgr.generate_deployment_csv(manifest)
+            dcol1, dcol2 = st.columns(2)
+            with dcol1:
                 st.download_button(
-                    label="\u2b07\ufe0f Download Deployment ZIP (HTML + metadata CSV)",
-                    data=_dr["zip_bytes"],
-                    file_name=(
-                        f"deployment_{_dep_batch['name'].replace(' ', '_')}.zip"
-                    ),
-                    mime="application/zip",
-                    key="dep_download",
+                    "⬇️ Download CSV Report",
+                    data=csv_data,
+                    file_name="deployment_report.csv",
+                    mime="text/csv",
+                    key="dl_csv",
                 )
-                st.balloons()
+            with dcol2:
+                if st.button("✕ Close", key="close_manifest"):
+                    st.session_state.factory_deploy_manifest = None
+                    st.rerun()
+
+        st.divider()
+
+    # ── Tier 1: Batch Generation ─────────────────────────────────────────────
+    with st.expander("🔧 Tier 1 — Generate New Batch", expanded=(st.session_state.factory_batch_id is None)):
+        st.caption("Generate 50+ landing pages and push them to the Pending Review staging queue.")
+        g1, g2 = st.columns(2)
+        with g1:
+            gen_service = st.text_input("Service Name", placeholder="e.g. Local SEO", key="gen_service")
+            gen_keyword = st.text_input("Primary Keyword", placeholder="e.g. local seo agency", key="gen_keyword")
+        with g2:
+            gen_count = st.number_input("Number of Pages", min_value=1, max_value=100, value=10, key="gen_count")
+            gen_batch_name = st.text_input("Batch Name", placeholder="e.g. Local SEO — March 2025", key="gen_batch_name")
+
+        gen_desc = st.text_area("Batch Description (optional)", height=60, key="gen_desc")
+
+        if st.button("🚀 Generate Batch (Stub Pages)", key="btn_gen_batch", type="primary"):
+            if not gen_service or not gen_keyword:
+                st.error("Please provide a service name and primary keyword.")
+            else:
+                bname = gen_batch_name or f"{gen_service} Batch — {gen_keyword}"
+                with st.spinner(f"Generating {gen_count} pages…"):
+                    stubs = _mgr.generate_stub_pages(gen_service, gen_keyword, count=int(gen_count))
+                    batch_id = _mgr.create_batch_from_pages(bname, stubs, batch_description=gen_desc)
+                st.session_state.factory_batch_id = batch_id
+                st.session_state.factory_selected_pages = []
+                st.success(
+                    f"✅ Batch '{bname}' created with {gen_count} pages — all in **Pending Review**."
+                )
+                st.rerun()
+
+        st.info(
+            "💡 For production LLM-generated content, run the CLI:\n"
+            "```bash\npython generator.py batch --pages-file examples/batch_pages.json "
+            "--output-dir output/ --openai-key $OPENAI_API_KEY\n```"
+        )
+
+    # ── Batch selector ────────────────────────────────────────────────────────
+    batches = _mgr.list_batches()
+    if batches:
+        st.subheader("📦 Select Active Batch")
+        batch_labels = [f"#{b['id']} — {b['name']} ({b['total_pages']} pages)" for b in batches]
+        current_idx = 0
+        if st.session_state.factory_batch_id:
+            ids = [b["id"] for b in batches]
+            if st.session_state.factory_batch_id in ids:
+                current_idx = ids.index(st.session_state.factory_batch_id)
+        chosen_label = st.selectbox("Active Batch:", batch_labels, index=current_idx, key="batch_selector")
+        chosen_batch = batches[batch_labels.index(chosen_label)]
+        if chosen_batch["id"] != st.session_state.factory_batch_id:
+            st.session_state.factory_batch_id = chosen_batch["id"]
+            st.session_state.factory_selected_pages = []
+            st.rerun()
+
+    # ── Main dashboard (only when a batch is selected) ─────────────────────
+    if st.session_state.factory_batch_id:
+        batch = _mgr.get_batch(st.session_state.factory_batch_id)
+        if not batch:
+            st.warning("Batch not found. Please generate or select a batch.")
+        else:
+            # ── Progress bar ──────────────────────────────────────────────
+            total = max(batch["total_pages"], 1)
+            prog_pending = batch["pages_pending"] / total
+            prog_approved = batch["pages_approved"] / total
+            prog_deployed = batch["pages_deployed"] / total
+
+            st.subheader(f"📊 {batch['name']}")
+            pcol1, pcol2, pcol3, pcol4 = st.columns(4)
+            pcol1.metric("Total Pages", batch["total_pages"])
+            pcol2.metric("🔴 Pending", batch["pages_pending"])
+            pcol3.metric("🟢 Approved", batch["pages_approved"])
+            pcol4.metric("🔵 Deployed", batch["pages_deployed"])
+
+            st.progress(prog_approved + prog_deployed, text=f"Progress: {round((prog_approved + prog_deployed) * 100)}% approved/deployed")
+
+            # ── Tier 2 & 3 layout: canvas + sidebar ──────────────────────
+            canvas_col, sidebar_col = st.columns([3, 1])
+
+            # ── Right sidebar: Batch Style Editor ────────────────────────
+            with sidebar_col:
+                with st.container(border=True):
+                    st.subheader("🎨 Batch Style Editor")
+                    n_sel = len(st.session_state.factory_selected_pages)
+                    st.caption(
+                        f"{'No pages' if n_sel == 0 else f'{n_sel} page(s)'} selected"
+                    )
+
+                    # Global template
+                    global_tpl_label = st.selectbox(
+                        "Apply Template to Selection",
+                        ["— keep individual —"] + _TEMPLATE_LABELS,
+                        key="sidebar_tpl",
+                    )
+
+                    # Brand color
+                    brand_color_options = ["blue", "indigo", "purple", "green", "red", "orange", "teal", "slate"]
+                    brand_color = st.selectbox("Brand Color", brand_color_options, key="sidebar_color")
+
+                    # CTA link
+                    cta_link = st.text_input("Global CTA Link", placeholder="https://yourdomain.com/contact", key="sidebar_cta")
+
+                    # Font family (informational only — applied via preview_state)
+                    font_family = st.selectbox(
+                        "Font Family",
+                        ["Default (system)", "Inter", "Georgia", "Roboto", "Lato"],
+                        key="sidebar_font",
+                    )
+
+                    if st.button("✅ Apply to Selected", key="apply_style", use_container_width=True, type="primary"):
+                        if not st.session_state.factory_selected_pages:
+                            st.warning("Select at least one page first.")
+                        else:
+                            chosen_tpl_key = None
+                            if global_tpl_label != "— keep individual —":
+                                chosen_tpl_key = _TEMPLATE_KEYS[_TEMPLATE_LABELS.index(global_tpl_label)]
+                            count = _mgr.apply_batch_style(
+                                st.session_state.factory_selected_pages,
+                                template=chosen_tpl_key,
+                                brand_color=brand_color,
+                                cta_link=cta_link or None,
+                                font_family=font_family if font_family != "Default (system)" else None,
+                            )
+                            st.success(f"Applied to {count} page(s)!")
+                            st.rerun()
+
+                    st.divider()
+
+                    # Bulk status controls
+                    st.caption("**Bulk Status**")
+                    bs1, bs2 = st.columns(2)
+                    with bs1:
+                        if st.button("✅ Approve All Selected", key="bulk_approve", use_container_width=True):
+                            if st.session_state.factory_selected_pages:
+                                _mgr.approve_pages(st.session_state.factory_selected_pages)
+                                st.rerun()
+                            else:
+                                st.warning("Select pages first.")
+                    with bs2:
+                        if st.button("🔍 Mark Reviewed", key="bulk_review", use_container_width=True):
+                            if st.session_state.factory_selected_pages:
+                                _mgr.review_pages(st.session_state.factory_selected_pages)
+                                st.rerun()
+                            else:
+                                st.warning("Select pages first.")
+
+                    st.divider()
+
+                    # Select All / Clear
+                    all_pages_in_batch = _mgr.list_pages(batch_id=st.session_state.factory_batch_id)
+                    all_ids = [p["id"] for p in all_pages_in_batch]
+                    sa1, sa2 = st.columns(2)
+                    with sa1:
+                        if st.button("☑ Select All", key="sel_all", use_container_width=True):
+                            st.session_state.factory_selected_pages = all_ids
+                            st.rerun()
+                    with sa2:
+                        if st.button("✕ Clear", key="sel_clear", use_container_width=True):
+                            st.session_state.factory_selected_pages = []
+                            st.rerun()
+
+                    st.divider()
+
+                    # Deploy batch button
+                    n_approved = batch["pages_approved"]
+                    deploy_disabled = n_approved == 0
+                    if deploy_disabled:
+                        st.caption("🔒 Deploy requires at least 1 Approved page.")
+                    if st.button(
+                        f"🚀 Deploy Batch ({n_approved} approved)",
+                        key="deploy_btn",
+                        disabled=deploy_disabled,
+                        use_container_width=True,
+                        type="primary",
+                    ):
+                        st.session_state._deploy_confirm = True
+                        st.rerun()
+
+                    if getattr(st.session_state, "_deploy_confirm", False):
+                        st.warning(
+                            f"You are about to publish **{n_approved} page(s)** to production.\n\n"
+                            "This action cannot be undone."
+                        )
+                        dc1, dc2 = st.columns(2)
+                        with dc1:
+                            if st.button("✅ Confirm Deploy", key="confirm_deploy", type="primary"):
+                                manifest = _mgr.deploy_batch(st.session_state.factory_batch_id)
+                                st.session_state.factory_deploy_manifest = manifest
+                                st.session_state._deploy_confirm = False
+                                st.rerun()
+                        with dc2:
+                            if st.button("✕ Cancel", key="cancel_deploy"):
+                                st.session_state._deploy_confirm = False
+                                st.rerun()
+
+            # ── Batch Canvas (grid view) ──────────────────────────────────
+            with canvas_col:
+                # Filter controls
+                fc1, fc2, fc3 = st.columns(3)
+                with fc1:
+                    filter_status = st.selectbox(
+                        "Filter by Status",
+                        ["All"] + [s.replace("_", " ").title() for s in _STATUS_ORDER],
+                        key="filter_status",
+                    )
+                with fc2:
+                    filter_tpl = st.selectbox(
+                        "Filter by Template",
+                        ["All"] + _TEMPLATE_LABELS,
+                        key="filter_tpl",
+                    )
+                with fc3:
+                    sort_by = st.selectbox(
+                        "Sort by",
+                        ["Created (oldest first)", "Quality Score ↓", "Title A→Z", "Status"],
+                        key="sort_pages",
+                    )
+
+                # Fetch + filter
+                status_filter_val = None
+                if filter_status != "All":
+                    status_filter_val = _STATUS_ORDER[
+                        [s.replace("_", " ").title() for s in _STATUS_ORDER].index(filter_status)
+                    ]
+                tpl_filter_val = None
+                if filter_tpl != "All":
+                    tpl_filter_val = _TEMPLATE_KEYS[_TEMPLATE_LABELS.index(filter_tpl)]
+
+                pages = _mgr.list_pages(
+                    batch_id=st.session_state.factory_batch_id,
+                    status=status_filter_val,
+                    template=tpl_filter_val,
+                )
+
+                # Sort
+                if sort_by == "Quality Score ↓":
+                    pages = sorted(
+                        pages,
+                        key=lambda p: (p.get("quality_scores") or {}).get("overall", 0),
+                        reverse=True,
+                    )
+                elif sort_by == "Title A→Z":
+                    pages = sorted(pages, key=lambda p: p["title"].lower())
+                elif sort_by == "Status":
+                    pages = sorted(pages, key=lambda p: _STATUS_ORDER.index(p["status"]))
+
+                st.caption(f"Showing {len(pages)} page(s)")
+
+                if not pages:
+                    st.info("No pages match the current filters.")
+                else:
+                    # 3-column grid
+                    rows = [pages[i:i+3] for i in range(0, len(pages), 3)]
+                    for row in rows:
+                        cols = st.columns(3)
+                        for page, col in zip(row, cols):
+                            _render_batch_tile(page, col)
+    else:
+        st.info("👆 Generate a new batch above or select an existing batch to get started.")

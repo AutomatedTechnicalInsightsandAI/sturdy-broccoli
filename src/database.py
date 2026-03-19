@@ -1,215 +1,106 @@
 """
 database.py
 
-SQLite persistence layer for the Staging & Review Workflow.
+SQLite persistence layer for the SEO Site Factory.
 
-Schema covers:
-  - batches          — batch-level metadata and global styling
-  - content_pages    — per-page content, quality metrics, review status
-  - templates        — reusable Tailwind HTML boilerplates
-  - competitor_analysis — per-page competitor benchmarking records
-  - page_revisions   — full audit trail of content changes
+Manages three primary tables:
+  - pages       — individual generated landing pages with full lifecycle tracking
+  - batches     — groups of pages generated together
+  - templates   — Tailwind CSS layout templates
 
-Connection management
-~~~~~~~~~~~~~~~~~~~~~
-``get_connection()`` returns a thread-local ``sqlite3.Connection`` backed by
-the path in the ``STURDY_DB_PATH`` environment variable (default:
-``sturdy_broccoli.db``).  Pass ``db_path=":memory:"`` to ``Database`` for an
-in-process test database.
+Schema mirrors the specification in the problem statement, using SQLite's
+built-in JSON1 extension for JSON columns.
 """
 from __future__ import annotations
 
 import json
-import logging
-import os
 import sqlite3
+import threading
+from contextlib import contextmanager
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
-
-logger = logging.getLogger(__name__)
-
-_DEFAULT_DB_PATH = os.environ.get("STURDY_DB_PATH", "sturdy_broccoli.db")
+from typing import Any, Generator
 
 # ---------------------------------------------------------------------------
-# DDL
+# Default database path
+# ---------------------------------------------------------------------------
+
+_DEFAULT_DB_PATH = Path(__file__).resolve().parent.parent / "seo_factory.db"
+
+# ---------------------------------------------------------------------------
+# Thread-local connection cache
+# ---------------------------------------------------------------------------
+
+_local = threading.local()
+
+
+def _utcnow() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+# ---------------------------------------------------------------------------
+# Schema
 # ---------------------------------------------------------------------------
 
 _SCHEMA_SQL = """
-PRAGMA journal_mode=WAL;
-PRAGMA foreign_keys=ON;
+PRAGMA journal_mode = WAL;
+PRAGMA foreign_keys = ON;
 
 CREATE TABLE IF NOT EXISTS batches (
     id                   INTEGER PRIMARY KEY AUTOINCREMENT,
-    name                 TEXT    NOT NULL,
-    description          TEXT,
-    total_pages          INTEGER NOT NULL DEFAULT 0,
-    pages_draft          INTEGER NOT NULL DEFAULT 0,
-    pages_approved       INTEGER NOT NULL DEFAULT 0,
-    pages_deployed       INTEGER NOT NULL DEFAULT 0,
-    pages_rejected       INTEGER NOT NULL DEFAULT 0,
-    batch_primary_color  TEXT,
-    batch_logo_url       TEXT,
-    batch_font_family    TEXT,
-    batch_global_cta_text TEXT,
-    batch_global_cta_link TEXT,
-    created_at           TIMESTAMP NOT NULL DEFAULT (datetime('now')),
-    created_by           TEXT,
-    deployed_at          TIMESTAMP,
-    deployed_by          TEXT
+    name                 TEXT NOT NULL,
+    description          TEXT DEFAULT '',
+    total_pages          INTEGER DEFAULT 0,
+    pages_pending        INTEGER DEFAULT 0,
+    pages_reviewed       INTEGER DEFAULT 0,
+    pages_approved       INTEGER DEFAULT 0,
+    pages_deployed       INTEGER DEFAULT 0,
+    created_at           TEXT NOT NULL,
+    created_by           TEXT DEFAULT 'user',
+    scheduled_deploy_at  TEXT,
+    deployed_at          TEXT
 );
 
-CREATE TABLE IF NOT EXISTS templates (
-    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
-    name                TEXT    UNIQUE NOT NULL,
-    display_name        TEXT    NOT NULL,
-    template_html       TEXT,
-    typography_config   TEXT,   -- JSON
-    color_config        TEXT,   -- JSON
-    cta_positions       TEXT,   -- JSON
-    preview_image_url   TEXT
-);
-
-CREATE TABLE IF NOT EXISTS content_pages (
+CREATE TABLE IF NOT EXISTS pages (
     id                   INTEGER PRIMARY KEY AUTOINCREMENT,
-    batch_id             INTEGER NOT NULL REFERENCES batches(id) ON DELETE CASCADE,
-    title                TEXT    NOT NULL,
-    slug                 TEXT    UNIQUE,
-    h1_content           TEXT,
-    meta_title           TEXT,
-    meta_description     TEXT,
-    content_markdown     TEXT,
-    template_id          INTEGER REFERENCES templates(id),
-    review_status        TEXT    NOT NULL DEFAULT 'draft'
-                             CHECK(review_status IN ('draft','approved','needs_revision','rejected','deployed')),
-    reviewer_notes       TEXT,
-    reviewed_by          TEXT,
-    reviewed_at          TIMESTAMP,
-    quality_scores       TEXT,   -- JSON {authority, semantic, structure, engagement, uniqueness, overall}
-    competitor_benchmark TEXT,
-    hub_page_id          INTEGER REFERENCES content_pages(id),
-    internal_links       TEXT,   -- JSON {links:[{to_page_id, anchor_text, status}]}
-    brand_color_override TEXT,
-    custom_logo_url      TEXT,
-    cta_text_override    TEXT,
-    cta_link_override    TEXT,
-    created_at           TIMESTAMP NOT NULL DEFAULT (datetime('now')),
-    last_modified_at     TIMESTAMP NOT NULL DEFAULT (datetime('now')),
-    deployed_at          TIMESTAMP
+    batch_id             INTEGER REFERENCES batches(id) ON DELETE CASCADE,
+    title                TEXT NOT NULL,
+    slug                 TEXT UNIQUE NOT NULL,
+    topic                TEXT NOT NULL,
+    primary_keyword      TEXT NOT NULL,
+    status               TEXT NOT NULL DEFAULT 'pending_review'
+                             CHECK(status IN ('pending_review','reviewed','approved','deployed','archived')),
+    preview_state        TEXT DEFAULT '{}',
+    assigned_template    TEXT NOT NULL DEFAULT 'modern_saas'
+                             CHECK(assigned_template IN ('modern_saas','professional_service',
+                                                         'content_guide','ecommerce','enterprise')),
+    h1_content           TEXT DEFAULT '',
+    meta_title           TEXT DEFAULT '',
+    meta_description     TEXT DEFAULT '',
+    content_markdown     TEXT DEFAULT '',
+    content_html         TEXT DEFAULT '',
+    quality_scores       TEXT DEFAULT '{}',
+    word_count           INTEGER DEFAULT 0,
+    assigned_by          TEXT DEFAULT 'system',
+    created_at           TEXT NOT NULL,
+    last_reviewed_at     TEXT,
+    deployed_at          TEXT
 );
+
+CREATE INDEX IF NOT EXISTS idx_pages_batch_id ON pages(batch_id);
+CREATE INDEX IF NOT EXISTS idx_pages_status   ON pages(status);
+CREATE INDEX IF NOT EXISTS idx_pages_template ON pages(assigned_template);
 
 CREATE TABLE IF NOT EXISTS competitor_analysis (
-    id                          INTEGER PRIMARY KEY AUTOINCREMENT,
-    page_id                     INTEGER NOT NULL REFERENCES content_pages(id) ON DELETE CASCADE,
-    competitor_url              TEXT,
-    competitor_h1               TEXT,
-    competitor_structure        TEXT,   -- JSON
-    competitor_quality_signals  TEXT,   -- JSON
-    analysis_timestamp          TIMESTAMP NOT NULL DEFAULT (datetime('now'))
+    id                       INTEGER PRIMARY KEY AUTOINCREMENT,
+    page_id                  INTEGER REFERENCES pages(id) ON DELETE CASCADE,
+    competitor_url           TEXT DEFAULT '',
+    competitor_h1            TEXT DEFAULT '',
+    competitor_structure     TEXT DEFAULT '[]',
+    competitor_quality_signals TEXT DEFAULT '[]',
+    analysis_timestamp       TEXT NOT NULL
 );
-
-CREATE TABLE IF NOT EXISTS page_revisions (
-    id               INTEGER PRIMARY KEY AUTOINCREMENT,
-    page_id          INTEGER NOT NULL REFERENCES content_pages(id) ON DELETE CASCADE,
-    revision_number  INTEGER NOT NULL,
-    content_markdown TEXT,
-    changed_by       TEXT,
-    change_timestamp TIMESTAMP NOT NULL DEFAULT (datetime('now')),
-    change_reason    TEXT
-);
-
-CREATE INDEX IF NOT EXISTS idx_pages_batch_id       ON content_pages(batch_id);
-CREATE INDEX IF NOT EXISTS idx_pages_review_status  ON content_pages(review_status);
-CREATE INDEX IF NOT EXISTS idx_pages_template_id    ON content_pages(template_id);
-CREATE INDEX IF NOT EXISTS idx_revisions_page_id    ON page_revisions(page_id);
-CREATE INDEX IF NOT EXISTS idx_competitor_page_id   ON competitor_analysis(page_id);
 """
-
-# ---------------------------------------------------------------------------
-# Seed data for templates
-# ---------------------------------------------------------------------------
-
-_SEED_TEMPLATES: list[dict[str, Any]] = [
-    {
-        "name": "modern_saas",
-        "display_name": "Modern SaaS",
-        "template_html": (
-            "<div class='min-h-screen bg-white'>"
-            "<h1 class='text-5xl font-bold text-gray-900 mt-16 mb-6'>{{h1}}</h1>"
-            "<p class='text-xl text-gray-600 mb-8'>{{meta_description}}</p>"
-            "<a href='{{cta_link}}' class='bg-blue-600 text-white px-8 py-3 rounded-lg'>{{cta_text}}</a>"
-            "<div class='mt-12 prose max-w-none'>{{content}}</div>"
-            "</div>"
-        ),
-        "typography_config": json.dumps({"font": "Inter", "h1_size": "5xl", "body_size": "base"}),
-        "color_config": json.dumps({"primary": "#2563EB", "background": "#FFFFFF", "text": "#111827"}),
-        "cta_positions": json.dumps(["hero", "mid_page", "footer"]),
-    },
-    {
-        "name": "professional_service",
-        "display_name": "Professional Service",
-        "template_html": (
-            "<div class='min-h-screen bg-gray-50'>"
-            "<div class='max-w-6xl mx-auto px-6 py-16'>"
-            "<h1 class='text-4xl font-serif font-bold text-gray-900 mb-4'>{{h1}}</h1>"
-            "<p class='text-lg text-gray-700 mb-6'>{{meta_description}}</p>"
-            "<div class='grid grid-cols-3 gap-8 mt-8'>"
-            "<div class='col-span-2 prose'>{{content}}</div>"
-            "<aside class='bg-white rounded-xl p-6 shadow'><h3 class='font-bold'>Why Choose Us</h3></aside>"
-            "</div></div></div>"
-        ),
-        "typography_config": json.dumps({"font": "Playfair Display", "h1_size": "4xl", "body_size": "lg"}),
-        "color_config": json.dumps({"primary": "#1E3A5F", "background": "#F9FAFB", "text": "#374151"}),
-        "cta_positions": json.dumps(["hero", "sidebar", "footer"]),
-    },
-    {
-        "name": "content_guide",
-        "display_name": "Content Guide",
-        "template_html": (
-            "<div class='min-h-screen bg-white'>"
-            "<div class='max-w-4xl mx-auto px-6 py-12'>"
-            "<h1 class='text-3xl font-bold text-gray-900 mb-2'>{{h1}}</h1>"
-            "<div class='flex gap-12 mt-8'>"
-            "<nav class='w-48 shrink-0'><p class='font-semibold text-sm uppercase text-gray-500'>Contents</p></nav>"
-            "<article class='prose prose-lg'>{{content}}</article>"
-            "</div></div></div>"
-        ),
-        "typography_config": json.dumps({"font": "Georgia", "h1_size": "3xl", "body_size": "lg"}),
-        "color_config": json.dumps({"primary": "#059669", "background": "#FFFFFF", "text": "#1F2937"}),
-        "cta_positions": json.dumps(["inline", "end_of_guide"]),
-    },
-    {
-        "name": "ecommerce",
-        "display_name": "E-commerce",
-        "template_html": (
-            "<div class='min-h-screen bg-white'>"
-            "<h1 class='text-4xl font-bold text-center py-8'>{{h1}}</h1>"
-            "<div class='grid grid-cols-4 gap-6 px-8'>{{content}}</div>"
-            "<div class='text-center py-12'>"
-            "<a href='{{cta_link}}' class='bg-orange-500 text-white px-10 py-4 rounded-full text-lg'>{{cta_text}}</a>"
-            "</div></div>"
-        ),
-        "typography_config": json.dumps({"font": "Poppins", "h1_size": "4xl", "body_size": "base"}),
-        "color_config": json.dumps({"primary": "#F97316", "background": "#FFFFFF", "text": "#111827"}),
-        "cta_positions": json.dumps(["hero", "product_grid", "cart_sidebar"]),
-    },
-    {
-        "name": "enterprise",
-        "display_name": "Enterprise",
-        "template_html": (
-            "<div class='min-h-screen bg-slate-900 text-white'>"
-            "<div class='max-w-7xl mx-auto px-8 py-20'>"
-            "<h1 class='text-5xl font-bold mb-6'>{{h1}}</h1>"
-            "<p class='text-xl text-slate-300 mb-10'>{{meta_description}}</p>"
-            "<div class='grid grid-cols-2 gap-12 mt-12'>{{content}}</div>"
-            "<div class='mt-16'>"
-            "<a href='{{cta_link}}' class='bg-blue-500 text-white px-10 py-4 rounded-lg text-lg'>{{cta_text}}</a>"
-            "</div></div></div>"
-        ),
-        "typography_config": json.dumps({"font": "Inter", "h1_size": "5xl", "body_size": "xl"}),
-        "color_config": json.dumps({"primary": "#3B82F6", "background": "#0F172A", "text": "#F1F5F9"}),
-        "cta_positions": json.dumps(["hero", "roi_calculator", "demo_request"]),
-    },
-]
 
 
 # ---------------------------------------------------------------------------
@@ -218,92 +109,252 @@ _SEED_TEMPLATES: list[dict[str, Any]] = [
 
 
 class Database:
-    """
-    Thin wrapper around a SQLite connection.
+    """Thin wrapper around a SQLite connection."""
 
-    Parameters
-    ----------
-    db_path:
-        File path for the SQLite database, or ``":memory:"`` for an
-        in-process test database.  Defaults to the value of the
-        ``STURDY_DB_PATH`` environment variable (``sturdy_broccoli.db``).
-    """
-
-    def __init__(self, db_path: str = _DEFAULT_DB_PATH) -> None:
-        self._db_path = db_path
-        self._conn: sqlite3.Connection | None = None
+    def __init__(self, db_path: Path | str | None = None) -> None:
+        self._path = Path(db_path) if db_path else _DEFAULT_DB_PATH
+        self._init_schema()
 
     # ------------------------------------------------------------------
-    # Connection management
+    # Internal helpers
     # ------------------------------------------------------------------
 
-    def connect(self) -> sqlite3.Connection:
-        """Return (or create) the underlying SQLite connection."""
-        if self._conn is None:
-            self._conn = sqlite3.connect(
-                self._db_path,
-                check_same_thread=False,
-            )
-            self._conn.row_factory = sqlite3.Row
-        return self._conn
+    def _connect(self) -> sqlite3.Connection:
+        if not getattr(_local, "conn", None) or getattr(_local, "db_path", None) != str(self._path):
+            conn = sqlite3.connect(str(self._path), check_same_thread=False)
+            conn.row_factory = sqlite3.Row
+            _local.conn = conn
+            _local.db_path = str(self._path)
+        return _local.conn
 
-    def close(self) -> None:
-        if self._conn is not None:
-            self._conn.close()
-            self._conn = None
+    @contextmanager
+    def _cursor(self) -> Generator[sqlite3.Cursor, None, None]:
+        conn = self._connect()
+        cur = conn.cursor()
+        try:
+            yield cur
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            cur.close()
 
-    # ------------------------------------------------------------------
-    # Schema initialisation
-    # ------------------------------------------------------------------
-
-    def init_schema(self) -> None:
-        """Create all tables (idempotent — uses CREATE IF NOT EXISTS)."""
-        conn = self.connect()
+    def _init_schema(self) -> None:
+        conn = self._connect()
         conn.executescript(_SCHEMA_SQL)
         conn.commit()
-        self._seed_templates()
-        logger.debug("Database schema initialised at %s", self._db_path)
 
-    def _seed_templates(self) -> None:
-        conn = self.connect()
-        for tmpl in _SEED_TEMPLATES:
-            conn.execute(
-                """
-                INSERT OR IGNORE INTO templates
-                    (name, display_name, template_html, typography_config,
-                     color_config, cta_positions)
-                VALUES (?, ?, ?, ?, ?, ?)
-                """,
+    @staticmethod
+    def _row_to_dict(row: sqlite3.Row | None) -> dict[str, Any] | None:
+        if row is None:
+            return None
+        d = dict(row)
+        # Decode JSON columns
+        for col in ("preview_state", "quality_scores", "competitor_structure", "competitor_quality_signals"):
+            if col in d and isinstance(d[col], str):
+                try:
+                    d[col] = json.loads(d[col])
+                except (json.JSONDecodeError, TypeError):
+                    pass
+        return d
+
+    # ------------------------------------------------------------------
+    # Batch operations
+    # ------------------------------------------------------------------
+
+    def create_batch(
+        self,
+        name: str,
+        description: str = "",
+        created_by: str = "user",
+        scheduled_deploy_at: str | None = None,
+    ) -> int:
+        with self._cursor() as cur:
+            cur.execute(
+                """INSERT INTO batches
+                   (name, description, created_by, scheduled_deploy_at, created_at)
+                   VALUES (?, ?, ?, ?, ?)""",
+                (name, description, created_by, scheduled_deploy_at, _utcnow()),
+            )
+            return cur.lastrowid  # type: ignore[return-value]
+
+    def get_batch(self, batch_id: int) -> dict[str, Any] | None:
+        with self._cursor() as cur:
+            cur.execute("SELECT * FROM batches WHERE id = ?", (batch_id,))
+            return self._row_to_dict(cur.fetchone())
+
+    def list_batches(self) -> list[dict[str, Any]]:
+        with self._cursor() as cur:
+            cur.execute("SELECT * FROM batches ORDER BY created_at DESC")
+            return [self._row_to_dict(r) for r in cur.fetchall()]  # type: ignore[misc]
+
+    def update_batch_counts(self, batch_id: int) -> None:
+        """Recompute page-status counters on the batch row."""
+        with self._cursor() as cur:
+            cur.execute(
+                """UPDATE batches SET
+                    total_pages     = (SELECT COUNT(*)  FROM pages WHERE batch_id = ?),
+                    pages_pending   = (SELECT COUNT(*)  FROM pages WHERE batch_id = ? AND status = 'pending_review'),
+                    pages_reviewed  = (SELECT COUNT(*)  FROM pages WHERE batch_id = ? AND status = 'reviewed'),
+                    pages_approved  = (SELECT COUNT(*)  FROM pages WHERE batch_id = ? AND status = 'approved'),
+                    pages_deployed  = (SELECT COUNT(*)  FROM pages WHERE batch_id = ? AND status = 'deployed')
+                WHERE id = ?""",
+                (batch_id,) * 5 + (batch_id,),
+            )
+
+    def mark_batch_deployed(self, batch_id: int) -> None:
+        with self._cursor() as cur:
+            cur.execute(
+                "UPDATE batches SET deployed_at = ? WHERE id = ?",
+                (_utcnow(), batch_id),
+            )
+
+    # ------------------------------------------------------------------
+    # Page operations
+    # ------------------------------------------------------------------
+
+    def create_page(self, data: dict[str, Any]) -> int:
+        now = _utcnow()
+        with self._cursor() as cur:
+            cur.execute(
+                """INSERT INTO pages
+                   (batch_id, title, slug, topic, primary_keyword,
+                    status, preview_state, assigned_template,
+                    h1_content, meta_title, meta_description,
+                    content_markdown, content_html,
+                    quality_scores, word_count,
+                    assigned_by, created_at)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (
-                    tmpl["name"],
-                    tmpl["display_name"],
-                    tmpl["template_html"],
-                    tmpl["typography_config"],
-                    tmpl["color_config"],
-                    tmpl["cta_positions"],
+                    data.get("batch_id"),
+                    data.get("title", ""),
+                    data.get("slug", ""),
+                    data.get("topic", ""),
+                    data.get("primary_keyword", ""),
+                    data.get("status", "pending_review"),
+                    json.dumps(data.get("preview_state", {})),
+                    data.get("assigned_template", "modern_saas"),
+                    data.get("h1_content", ""),
+                    data.get("meta_title", ""),
+                    data.get("meta_description", ""),
+                    data.get("content_markdown", ""),
+                    data.get("content_html", ""),
+                    json.dumps(data.get("quality_scores", {})),
+                    data.get("word_count", 0),
+                    data.get("assigned_by", "system"),
+                    now,
                 ),
             )
-        conn.commit()
+            page_id = cur.lastrowid
+        if data.get("batch_id"):
+            self.update_batch_counts(data["batch_id"])
+        return page_id  # type: ignore[return-value]
 
-    # ------------------------------------------------------------------
-    # Helpers
-    # ------------------------------------------------------------------
+    def get_page(self, page_id: int) -> dict[str, Any] | None:
+        with self._cursor() as cur:
+            cur.execute("SELECT * FROM pages WHERE id = ?", (page_id,))
+            return self._row_to_dict(cur.fetchone())
 
-    def fetchone(self, sql: str, params: tuple = ()) -> dict[str, Any] | None:
-        row = self.connect().execute(sql, params).fetchone()
-        return dict(row) if row is not None else None
+    def list_pages(
+        self,
+        batch_id: int | None = None,
+        status: str | None = None,
+        template: str | None = None,
+    ) -> list[dict[str, Any]]:
+        clauses: list[str] = []
+        params: list[Any] = []
+        if batch_id is not None:
+            clauses.append("batch_id = ?")
+            params.append(batch_id)
+        if status:
+            clauses.append("status = ?")
+            params.append(status)
+        if template:
+            clauses.append("assigned_template = ?")
+            params.append(template)
+        where = ("WHERE " + " AND ".join(clauses)) if clauses else ""
+        with self._cursor() as cur:
+            cur.execute(f"SELECT * FROM pages {where} ORDER BY created_at ASC", params)
+            return [self._row_to_dict(r) for r in cur.fetchall()]  # type: ignore[misc]
 
-    def fetchall(self, sql: str, params: tuple = ()) -> list[dict[str, Any]]:
-        rows = self.connect().execute(sql, params).fetchall()
-        return [dict(r) for r in rows]
+    def update_page(self, page_id: int, updates: dict[str, Any]) -> None:
+        """Partial update — only supplied keys are written."""
+        allowed = {
+            "title", "slug", "topic", "primary_keyword", "status",
+            "preview_state", "assigned_template",
+            "h1_content", "meta_title", "meta_description",
+            "content_markdown", "content_html",
+            "quality_scores", "word_count", "assigned_by",
+            "last_reviewed_at", "deployed_at",
+        }
+        cols: list[str] = []
+        vals: list[Any] = []
+        for k, v in updates.items():
+            if k not in allowed:
+                continue
+            cols.append(f"{k} = ?")
+            if k in ("preview_state", "quality_scores") and isinstance(v, dict):
+                vals.append(json.dumps(v))
+            else:
+                vals.append(v)
+        if not cols:
+            return
+        vals.append(page_id)
+        with self._cursor() as cur:
+            cur.execute(f"UPDATE pages SET {', '.join(cols)} WHERE id = ?", vals)
+        # Refresh batch counters if status changed
+        if "status" in updates:
+            page = self.get_page(page_id)
+            if page and page.get("batch_id"):
+                self.update_batch_counts(page["batch_id"])
 
-    def execute(self, sql: str, params: tuple = ()) -> sqlite3.Cursor:
-        return self.connect().execute(sql, params)
+    def set_page_status(self, page_id: int, status: str) -> None:
+        now = _utcnow()
+        extra: dict[str, Any] = {"status": status}
+        if status == "reviewed":
+            extra["last_reviewed_at"] = now
+        elif status == "deployed":
+            extra["deployed_at"] = now
+        self.update_page(page_id, extra)
 
-    def commit(self) -> None:
-        self.connect().commit()
+    def bulk_set_status(self, page_ids: list[int], status: str) -> None:
+        for pid in page_ids:
+            self.set_page_status(pid, status)
 
-    def lastrowid(self, sql: str, params: tuple = ()) -> int:
-        cur = self.execute(sql, params)
-        self.commit()
-        return cur.lastrowid  # type: ignore[return-value]
+    def bulk_update_preview_state(
+        self, page_ids: list[int], patch: dict[str, Any]
+    ) -> None:
+        """Merge *patch* into each page's preview_state JSON."""
+        for pid in page_ids:
+            page = self.get_page(pid)
+            if not page:
+                continue
+            state = page.get("preview_state") or {}
+            if isinstance(state, str):
+                try:
+                    state = json.loads(state)
+                except json.JSONDecodeError:
+                    state = {}
+            state.update(patch)
+            self.update_page(pid, {"preview_state": state})
+
+    def bulk_set_template(self, page_ids: list[int], template: str) -> None:
+        for pid in page_ids:
+            self.update_page(pid, {"assigned_template": template})
+
+    def deploy_approved_pages(self, batch_id: int) -> list[dict[str, Any]]:
+        """Mark all approved pages in a batch as deployed; return them."""
+        pages = self.list_pages(batch_id=batch_id, status="approved")
+        for page in pages:
+            self.set_page_status(page["id"], "deployed")
+        self.mark_batch_deployed(batch_id)
+        self.update_batch_counts(batch_id)
+        return pages
+
+    def delete_page(self, page_id: int) -> None:
+        page = self.get_page(page_id)
+        with self._cursor() as cur:
+            cur.execute("DELETE FROM pages WHERE id = ?", (page_id,))
+        if page and page.get("batch_id"):
+            self.update_batch_counts(page["batch_id"])
