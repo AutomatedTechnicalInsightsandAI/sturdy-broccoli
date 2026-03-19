@@ -7,13 +7,23 @@ Run with:
 from __future__ import annotations
 
 import json
+from datetime import date, datetime
 
 import streamlit as st
 
-from src.prompt_builder import PromptBuilder
-from src.template_manager import TemplateManager
 from src.competitor_analyzer import CompetitorAnalyzer
+from src.database import Database
 from src.multi_format_generator import MultiFormatGenerator
+from src.prompt_builder import PromptBuilder
+from src.quality_scorer import QualityScorer
+from src.template_manager import TemplateManager
+
+
+def _json_default(obj: object) -> str:
+    """Custom JSON encoder fallback for datetime/date objects."""
+    if isinstance(obj, (datetime, date)):
+        return obj.isoformat()
+    raise TypeError(f"Object of type {type(obj).__name__} is not JSON serialisable")
 
 st.set_page_config(
     page_title="Sturdy Broccoli — Enterprise SEO Content Factory",
@@ -23,12 +33,22 @@ st.set_page_config(
 
 st.title("🥦 Sturdy Broccoli — Enterprise SEO Content Factory")
 
-tab_prompt, tab_hub, tab_competitor, tab_multiformat, tab_template = st.tabs([
+# ---------------------------------------------------------------------------
+# Initialise persistent database (stored in Streamlit session state so the
+# same in-process instance is reused across reruns within a session).
+# ---------------------------------------------------------------------------
+if "db" not in st.session_state:
+    st.session_state.db = Database()
+
+db: Database = st.session_state.db
+
+tab_prompt, tab_hub, tab_competitor, tab_multiformat, tab_template, tab_library = st.tabs([
     "📝 Prompt Generator",
     "🕸️ Hub & Spoke",
     "🔍 Competitor Analysis",
     "📢 Multi-Format",
     "🏗️ Landing Page Templates",
+    "📚 Page Library",
 ])
 
 # ---------------------------------------------------------------------------
@@ -391,3 +411,223 @@ with tab_template:
         with st.expander("Page Data JSON (for Prompt Generator)"):
             page_data = tm.render_page_data(selected_service)
             st.json(page_data)
+
+        # Quality score for the HTML preview
+        with st.expander("📊 Quality Scores for This Template"):
+            scorer = QualityScorer()
+            result = scorer.score(html_preview, page_data)
+            d = result.as_dict()
+
+            col_s1, col_s2, col_s3, col_s4, col_s5 = st.columns(5)
+            col_s1.metric("🏛️ Authority", f"{d['authority']:.0f}/100")
+            col_s2.metric("🧠 Semantic", f"{d['semantic']:.0f}/100")
+            col_s3.metric("🏗️ Structure", f"{d['structure']:.0f}/100")
+            col_s4.metric("🎯 Engagement", f"{d['engagement']:.0f}/100")
+            col_s5.metric("✨ Uniqueness", f"{d['uniqueness']:.0f}/100")
+
+            st.metric("⭐ Overall Quality Score", f"{d['overall']:.1f}/100")
+
+            for dim, notes in d["explanations"].items():
+                with st.expander(f"{dim.capitalize()} Recommendations"):
+                    for note in notes:
+                        st.write(f"• {note}")
+
+        if st.button(
+            f"💾 Save '{template['h1']}' to Page Library",
+            key=f"save_template_{selected_service}",
+        ):
+            pid = db.create_page(
+                service_type=selected_service,
+                topic=template["h1"],
+                primary_keyword=template["primary_keyword"],
+                page_type="landing_page",
+            )
+            db.save_content_version(
+                pid,
+                content_html=html_preview,
+                content_markdown="",
+                quality_report=result.as_dict(),
+            )
+            db.save_quality_scores(pid, d)
+            st.success(f"✅ Saved to Page Library (ID: {pid})")
+
+# ---------------------------------------------------------------------------
+# Tab 6: Page Library (database-backed)
+# ---------------------------------------------------------------------------
+
+with tab_library:
+    st.header("📚 Page Library")
+    st.caption(
+        "Manage all generated pages stored in the persistent database. "
+        "Filter, review quality scores, update status, and export content."
+    )
+
+    # Dashboard stats
+    stats = db.get_dashboard_stats()
+    c1, c2, c3, c4, c5, c6 = st.columns(6)
+    c1.metric("Total Pages", stats["total_pages"])
+    c2.metric("Published", stats["published_pages"])
+    c3.metric("Draft", stats["draft_pages"])
+    c4.metric("In Review", stats["review_pages"])
+    c5.metric("Total Words", f"{stats['total_words']:,}")
+    c6.metric("Avg Quality", f"{stats['avg_quality_score']:.1f}")
+
+    st.markdown("---")
+
+    # Client management
+    with st.expander("👥 Client Management"):
+        col_cl1, col_cl2 = st.columns(2)
+        with col_cl1:
+            cl_name = st.text_input("Client Name", key="lib_cl_name")
+            cl_slug = st.text_input("Client Slug (URL-safe)", key="lib_cl_slug")
+            cl_site = st.text_input("Website (optional)", key="lib_cl_site")
+            if st.button("Add Client", key="lib_add_client"):
+                if cl_name and cl_slug:
+                    try:
+                        cid = db.create_client(cl_name, cl_slug, cl_site)
+                        st.success(f"Client added (ID: {cid})")
+                    except Exception as exc:
+                        st.error(f"Error: {exc}")
+                else:
+                    st.warning("Name and slug are required.")
+        with col_cl2:
+            clients = db.list_clients()
+            if clients:
+                st.subheader("Existing Clients")
+                for c in clients:
+                    st.write(f"**{c['name']}** (`{c['slug']}`)")
+            else:
+                st.info("No clients yet.")
+
+    st.markdown("---")
+
+    # Filter controls
+    col_f1, col_f2, col_f3 = st.columns(3)
+    with col_f1:
+        filter_status = st.selectbox(
+            "Filter by Status",
+            ["All", "draft", "review", "published", "archived"],
+            key="lib_filter_status",
+        )
+    with col_f2:
+        tm_lib = TemplateManager()
+        filter_service = st.selectbox(
+            "Filter by Service Type",
+            ["All"] + tm_lib.list_service_types(),
+            key="lib_filter_service",
+        )
+    with col_f3:
+        clients_list = db.list_clients()
+        client_options = {"All": None}
+        for cl in clients_list:
+            client_options[cl["name"]] = cl["id"]
+        selected_client_name = st.selectbox(
+            "Filter by Client",
+            list(client_options.keys()),
+            key="lib_filter_client",
+        )
+
+    pages = db.list_pages(
+        status=filter_status if filter_status != "All" else None,
+        service_type=filter_service if filter_service != "All" else None,
+        client_id=client_options.get(selected_client_name),
+    )
+
+    if not pages:
+        st.info("No pages found. Generate some using the Landing Page Templates tab.")
+    else:
+        st.write(f"**{len(pages)} page(s) found**")
+        for page in pages:
+            with st.expander(
+                f"[{page['status'].upper()}] {page['topic']} — `{page['primary_keyword']}`",
+                expanded=False,
+            ):
+                col_p1, col_p2, col_p3 = st.columns([2, 1, 1])
+
+                with col_p1:
+                    st.write(f"**Service:** {page['service_type']}")
+                    st.write(f"**Created:** {page['created_at'][:10]}")
+                    st.write(f"**Updated:** {page['updated_at'][:10]}")
+
+                with col_p2:
+                    quality = db.get_latest_quality_scores(page["id"])
+                    if quality:
+                        st.metric("Overall Quality", f"{quality['overall']:.1f}")
+                        st.metric("Authority", f"{quality['authority']:.1f}")
+                        st.metric("Structure", f"{quality['structure']:.1f}")
+                    else:
+                        st.info("No quality scores yet.")
+
+                with col_p3:
+                    new_status = st.selectbox(
+                        "Status",
+                        ["draft", "review", "published", "archived"],
+                        index=["draft", "review", "published", "archived"].index(
+                            page["status"]
+                        ),
+                        key=f"lib_status_{page['id']}",
+                    )
+                    if st.button("Update Status", key=f"lib_update_{page['id']}"):
+                        db.update_page_status(page["id"], new_status)
+                        st.success("Status updated.")
+                        st.rerun()
+                    if st.button(
+                        "🗑️ Delete", key=f"lib_delete_{page['id']}", type="secondary"
+                    ):
+                        db.delete_page(page["id"])
+                        st.warning("Page deleted.")
+                        st.rerun()
+
+                # Show latest content version
+                version = db.get_latest_version(page["id"])
+                if version:
+                    st.write(f"**Version {version['version']}** · {version['word_count']} words")
+                    with st.expander("View HTML"):
+                        st.code(version["content_html"], language="html")
+                    if version["content_markdown"]:
+                        with st.expander("View Markdown"):
+                            st.code(version["content_markdown"], language="markdown")
+
+    # Bulk export section
+    st.markdown("---")
+    st.subheader("📦 Bulk Export")
+    if pages:
+        export_format = st.radio(
+            "Export format", ["JSON", "HTML files summary"], horizontal=True, key="lib_export_fmt"
+        )
+        if st.button("Export All Filtered Pages", key="lib_export"):
+            if export_format == "JSON":
+                export_data = []
+                for page in pages:
+                    entry = dict(page)
+                    version = db.get_latest_version(page["id"])
+                    if version:
+                        entry["latest_version"] = version
+                    scores = db.get_latest_quality_scores(page["id"])
+                    if scores:
+                        entry["quality_scores"] = scores
+                    export_data.append(entry)
+                st.download_button(
+                    label="⬇️ Download JSON",
+                    data=json.dumps(export_data, indent=2, default=_json_default),
+                    file_name="page_library_export.json",
+                    mime="application/json",
+                )
+            else:
+                html_parts: list[str] = [
+                    "<html><body>",
+                    "<h1>Page Library Export</h1>",
+                ]
+                for page in pages:
+                    version = db.get_latest_version(page["id"])
+                    html_content = version["content_html"] if version else ""
+                    html_parts.append(f"<section><h2>{page['topic']}</h2>")
+                    html_parts.append(html_content)
+                    html_parts.append("</section><hr/>")
+                html_parts.append("</body></html>")
+                st.download_button(
+                    label="⬇️ Download HTML",
+                    data="\n".join(html_parts),
+                    file_name="page_library_export.html",
+                    mime="text/html",
+                )
