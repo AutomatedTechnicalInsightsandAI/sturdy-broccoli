@@ -486,6 +486,8 @@ class Database:
         set_parts.append("updated_at = ?")
         params.append(_now())
         params.append(page_id)
+        # Column names are validated against safe_cols (hardcoded allowlist);
+        # values are passed as bound parameters — this is safe from SQL injection.
         self.execute(
             f"UPDATE batch_pages SET {', '.join(set_parts)} WHERE id = ?",  # noqa: S608
             tuple(params),
@@ -495,12 +497,16 @@ class Database:
         self, page_ids: list[int], patch: dict[str, Any]
     ) -> None:
         """Merge *patch* into the ``preview_state`` JSON for each page."""
-        for pid in page_ids:
-            row = self.fetchone(
-                "SELECT preview_state FROM batch_pages WHERE id = ?", (pid,)
-            )
-            if row is None:
-                continue
+        if not page_ids:
+            return
+        # Read all current states in one query.
+        placeholders = ",".join(["?"] * len(page_ids))
+        rows = self.fetchall(
+            f"SELECT id, preview_state FROM batch_pages WHERE id IN ({placeholders})",  # noqa: S608
+            tuple(page_ids),
+        )
+        now = _now()
+        for row in rows:
             raw = row.get("preview_state") or "{}"
             try:
                 state: dict[str, Any] = json.loads(raw)
@@ -509,26 +515,34 @@ class Database:
             state.update(patch)
             self.execute(
                 "UPDATE batch_pages SET preview_state = ?, updated_at = ? WHERE id = ?",
-                (json.dumps(state), _now(), pid),
+                (json.dumps(state), now, row["id"]),
             )
 
     def bulk_set_template(self, page_ids: list[int], template: str) -> None:
         """Set ``assigned_template`` for all listed pages."""
+        if not page_ids:
+            return
         now = _now()
-        for pid in page_ids:
-            self.execute(
-                "UPDATE batch_pages SET assigned_template = ?, updated_at = ? WHERE id = ?",
-                (template, now, pid),
-            )
+        # Placeholders are generated from len(page_ids) — not user input.
+        placeholders = ",".join(["?"] * len(page_ids))
+        self.execute(
+            f"UPDATE batch_pages SET assigned_template = ?, updated_at = ?"  # noqa: S608
+            f" WHERE id IN ({placeholders})",
+            (template, now, *page_ids),
+        )
 
     def bulk_set_status(self, page_ids: list[int], status: str) -> None:
         """Set ``status`` for all listed pages."""
+        if not page_ids:
+            return
         now = _now()
-        for pid in page_ids:
-            self.execute(
-                "UPDATE batch_pages SET status = ?, updated_at = ? WHERE id = ?",
-                (status, now, pid),
-            )
+        # Placeholders are generated from len(page_ids) — not user input.
+        placeholders = ",".join(["?"] * len(page_ids))
+        self.execute(
+            f"UPDATE batch_pages SET status = ?, updated_at = ?"  # noqa: S608
+            f" WHERE id IN ({placeholders})",
+            (status, now, *page_ids),
+        )
 
     def deploy_approved_pages(self, batch_id: int) -> list[dict[str, Any]]:
         """
@@ -545,11 +559,13 @@ class Database:
         if not approved:
             return []
         ids = [r["id"] for r in approved]
-        for pid in ids:
-            self.execute(
-                "UPDATE batch_pages SET status = 'deployed', updated_at = ? WHERE id = ?",
-                (now, pid),
-            )
+        # Single UPDATE for all approved pages.
+        placeholders = ",".join(["?"] * len(ids))
+        self.execute(
+            f"UPDATE batch_pages SET status = 'deployed', updated_at = ?"  # noqa: S608
+            f" WHERE id IN ({placeholders})",
+            (now, *ids),
+        )
         count = len(ids)
         self.execute(
             """UPDATE batches SET
@@ -558,11 +574,23 @@ class Database:
                WHERE id = ?""",
             (count, count, batch_id),
         )
+        # Fetch all deployed pages in one query.
+        deployed_rows = self.fetchall(
+            f"SELECT * FROM batch_pages WHERE id IN ({placeholders})",  # noqa: S608
+            tuple(ids),
+        )
         deployed = []
-        for pid in ids:
-            row = self._get_staging_page(pid)
-            if row:
-                deployed.append(row)
+        for row in deployed_rows:
+            for field in ("preview_state", "quality_scores"):
+                raw = row.get(field)
+                if isinstance(raw, str) and raw:
+                    try:
+                        row[field] = json.loads(raw)
+                    except json.JSONDecodeError:
+                        row[field] = {}
+                elif not raw:
+                    row[field] = {}
+            deployed.append(row)
         return deployed
 
     # ------------------------------------------------------------------
@@ -756,6 +784,8 @@ class Database:
             legacy_params.append(service_type)
 
         where = ("WHERE " + " AND ".join(legacy_clauses)) if legacy_clauses else ""
+        # WHERE clause components come from the hardcoded mapping above —
+        # not from user input — so f-string interpolation is safe here.
         sql_legacy = f"SELECT * FROM pages {where} ORDER BY created_at DESC"  # noqa: S608
 
         with self._connect() as conn:
