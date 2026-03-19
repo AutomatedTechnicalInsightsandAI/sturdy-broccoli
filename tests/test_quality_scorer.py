@@ -1,349 +1,360 @@
-"""Tests for src/quality_scorer.py — Five-metric quality scoring engine."""
+"""Tests for the multi-dimensional QualityScorer."""
 from __future__ import annotations
 
 import pytest
 
-from src.quality_scorer import QualityScorer, _score_band, _clamp
-
+from src.quality_scorer import QualityScorer, QualityScoreResult
 
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
 
-@pytest.fixture
-def scorer() -> QualityScorer:
-    return QualityScorer()
+_HIGH_QUALITY_HTML = """
+<html>
+<head>
+<script type="application/ld+json">{"@context":"https://schema.org"}</script>
+</head>
+<body>
+<h1>Local SEO Services That Drive Real Revenue</h1>
+<p>According to Google, 46% of all searches have local intent.
+Our proven methodology has helped 500+ businesses increase calls by 3×.</p>
+<h2>Why Local SEO Matters for Your Business</h2>
+<p>Unlike generic SEO, local search targets customers in your geography.
+We've measured a 40% increase in map-pack clicks within 90 days.
+Research shows businesses in the top 3 positions receive 75% of local clicks.</p>
+<h2>Our Battle-Tested Process</h2>
+<ul>
+  <li>Google Business Profile optimisation</li>
+  <li>Citation building and NAP consistency</li>
+  <li>Local link acquisition from community sites</li>
+  <li>Review strategy and management</li>
+</ul>
+<h2>Client Results That Prove Our Approach</h2>
+<p>Case study: Pacific Plumbing increased calls from Google by 2× in 60 days.
+Client result: Bright Smiles Dental ranked in the top 3 local pack for all target terms.</p>
+<blockquote>Within 60 days we were in the top 3 of the local pack.</blockquote>
+<h2>Why We Outperform Competitors</h2>
+<p>Compared to Thrive Internet Marketing and WebFX, we deliver faster results
+with transparent monthly reporting. Unlike most agencies, we guarantee map-pack
+placement or your money back.</p>
+<h3>Our Reporting Framework</h3>
+<p>We track calls, clicks, and conversions — not just rankings.
+Our proprietary ROI calculator shows your return on investment monthly.</p>
+<h2>Trust Signals &amp; Credentials</h2>
+<p>Certified Google Partner. Award-winning agency. 10 years experience.
+Clutch Top 100 SEO Agency 2024. 500+ clients served.</p>
+<h2>Get Started Today</h2>
+<p>Ready to dominate local search? Get your free Local SEO audit today.
+Book a strategy call now. Schedule your consultation.</p>
+</body>
+</html>
+"""
 
+_LOW_QUALITY_HTML = """
+<p>This is a generated page about local seo. Lorem ipsum placeholder.
+In today's world, it is important to leverage the power of local SEO.
+As a game-changer, we take your business to the next level.
+Think outside the box with our dynamic solutions.
+This is a placeholder. Add content here. TODO.</p>
+"""
 
-# Minimal page with all semantic data populated
-RICH_PAGE: dict = {
-    "title": "NFT Consultant Services - CrowdCreate",
-    "h1": "Expert NFT Strategy Consulting for Fortune 500 Companies",
-    "meta_title": "NFT Consultant Services | CrowdCreate",  # 44 chars — short
-    "meta_description": (
-        "CrowdCreate specializes in NFT consulting for enterprise clients. "
-        "Proven results in blockchain strategy and Web3 adoption."
-    ),  # ~128 chars
-    "target_keyword": "nft consulting services",
-    "secondary_keywords": ["nft strategy", "blockchain consultant", "web3 advisory"],
-    "word_count": 2847,
-    "role": "hub",
-    "hub_page_id": None,
-    "color_override": "#2563EB",
-    "semantic_core": {
-        "entities": [
-            {"text": "NFT", "entity_type": "TECHNOLOGY", "mentions": 23},
-            {"text": "blockchain", "entity_type": "TECHNOLOGY", "mentions": 18},
-            {"text": "enterprise adoption", "entity_type": "CONCEPT", "mentions": 7},
-            {"text": "Ethereum", "entity_type": "TECHNOLOGY", "mentions": 5},
-            {"text": "CrowdCreate", "entity_type": "ORG", "mentions": 9},
-        ],
-        "lsi_keywords": [
-            "digital assets", "smart contracts", "tokenomics", "Web3",
-            "decentralized", "DeFi", "enterprise", "blockchain adoption",
-            "regulatory compliance", "token strategy",
-        ],
-        "topic_coverage": {
-            "problem": "Enterprise companies struggle with NFT integration strategy",
-            "solution": "CrowdCreate's 3-phase data-driven approach to blockchain adoption",
-            "result": "Case study: Client reduced time-to-launch by 60%",
-        },
-    },
-    "structure": {
-        "h1": "Expert NFT Strategy Consulting for Fortune 500 Companies",
-        "h2_sections": [
-            {"text": "Why Enterprise NFT Strategies Fail", "subsections": ["Mistake 1", "Mistake 2"]},
-            {"text": "Our NFT Consulting Framework", "subsections": ["Phase 1", "Phase 2", "Phase 3"]},
-            {"text": "Case Studies", "subsections": ["Fashion Brand", "Financial Services"]},
-            {"text": "Pricing & Timeline", "subsections": []},
-            {"text": "FAQ", "subsections": []},
-        ],
-        "cta_sections": [
-            {"position": "mid-page", "text": "Get a Free NFT Strategy Audit", "strength": "benefit-driven"},
-            {"position": "end-of-page", "text": "Claim Your Consultation", "strength": "urgency"},
-        ],
-    },
-    "competitor_intelligence": {
-        "benchmarked_against": [
-            {
-                "url": "https://consensys.net/nft-services",
-                "key_topics_covered": ["regulatory compliance", "technical architecture", "use cases"],
-            }
-        ],
-        "competitive_advantage": [
-            "Speed-to-Launch: 90 days vs. 6-month industry standard",
-            "Fortune 500 case studies (competitors focus on startups)",
-            "Regulatory compliance framework 2026",
-        ],
-    },
-    "hub_and_spoke": {
-        "role": "HUB",
-        "spokes": [
-            {"spoke_id": 43, "title": "Ultimate Guide", "anchor_text": "in-depth guide", "link_status": "verified"},
-            {"spoke_id": 44, "title": "How to Choose", "anchor_text": "comprehensive guide", "link_status": "verified"},
-        ],
-    },
-    "content_markdown": (
-        "# Expert NFT Strategy Consulting\n\n"
-        "Enterprise companies struggle with NFT integration strategy and face challenges.\n\n"
-        "Our solution is a framework to solve this problem and address the issue.\n\n"
-        "According to Gartner, 67% of Fortune 500 companies see NFTs as critical by 2026.\n\n"
-        "Results: We helped a client achieve a 60% improvement in time-to-launch.\n\n"
-        "Unlike Consensys, we focus on enterprise-specific blockchain strategy versus generic consulting.\n\n"
-        "Our methodology involves a 3-phase approach:\n\n"
-        "- Phase 1: Strategic Assessment\n"
-        "- Phase 2: Blockchain Architecture Design\n"
-        "- Phase 3: Launch & Scale\n\n"
-        "Case study: Client reduced launch time by 60% compared to industry standard of 6 months.\n\n"
-        "Save 6 months with our proven reduce risk framework that increases ROI by 40%.\n"
-    ),
-    "content_html": "<h1>Expert NFT Strategy</h1>",
-    "last_modified_at": "2026-03-19T14:32:00Z",
-}
+_MARKDOWN_CONTENT = """
+# Ultimate Guide to LinkedIn Marketing
 
-# Minimal page — most fields missing or empty
-MINIMAL_PAGE: dict = {
-    "title": "Minimal Page",
-    "h1": "",
-    "meta_title": "",
-    "meta_description": "",
-    "target_keyword": "test keyword",
-    "word_count": 100,
-    "role": "spoke",
-    "content_markdown": "",
-    "content_html": "",
-}
+## Why LinkedIn Marketing Drives B2B Results
+
+According to HubSpot, LinkedIn generates 80% of B2B social media leads.
+Our proven LinkedIn strategy has helped clients increase leads by 3× in 90 days.
+
+## Our Battle-Tested LinkedIn Process
+
+Research shows that companies posting consistently see 2× more engagement.
+We've measured these results across 200+ campaigns.
+
+1. Profile optimisation
+2. Content calendar creation
+3. Outreach strategy
+4. Analytics and reporting
+
+## Case Studies: LinkedIn Marketing Results
+
+Case study: Tech startup achieved 150% more qualified leads in Q1.
+Client result: SaaS company grew their pipeline by $2M via LinkedIn outreach.
+
+## Get Your Free LinkedIn Audit
+
+Schedule a strategy call today. Get started with LinkedIn marketing.
+Book your free consultation now.
+"""
 
 
 # ---------------------------------------------------------------------------
-# Helpers
+# Test: Score returns correct types
 # ---------------------------------------------------------------------------
 
-class TestHelpers:
-    def test_score_band_excellent(self) -> None:
-        assert _score_band(95) == "Excellent"
-        assert _score_band(90) == "Excellent"
 
-    def test_score_band_strong(self) -> None:
-        assert _score_band(85) == "Strong"
-        assert _score_band(80) == "Strong"
+class TestQualityScorerTypes:
+    def test_returns_quality_score_result(self) -> None:
+        scorer = QualityScorer()
+        result = scorer.score(_HIGH_QUALITY_HTML)
+        assert isinstance(result, QualityScoreResult)
 
-    def test_score_band_good(self) -> None:
-        assert _score_band(75) == "Good"
-        assert _score_band(70) == "Good"
+    def test_all_scores_are_floats(self) -> None:
+        scorer = QualityScorer()
+        result = scorer.score(_HIGH_QUALITY_HTML)
+        assert isinstance(result.authority, float)
+        assert isinstance(result.semantic, float)
+        assert isinstance(result.structure, float)
+        assert isinstance(result.engagement, float)
+        assert isinstance(result.uniqueness, float)
+        assert isinstance(result.overall, float)
 
-    def test_score_band_fair(self) -> None:
-        assert _score_band(65) == "Fair"
-        assert _score_band(60) == "Fair"
+    def test_scores_in_range_0_to_100(self) -> None:
+        scorer = QualityScorer()
+        for content in (_HIGH_QUALITY_HTML, _LOW_QUALITY_HTML, _MARKDOWN_CONTENT):
+            result = scorer.score(content)
+            for dim in ("authority", "semantic", "structure", "engagement", "uniqueness", "overall"):
+                val = getattr(result, dim)
+                assert 0.0 <= val <= 100.0, f"{dim} score {val} out of range for content"
 
-    def test_score_band_needs_work(self) -> None:
-        assert _score_band(50) == "Needs Work"
-        assert _score_band(0) == "Needs Work"
+    def test_as_dict_returns_dict(self) -> None:
+        scorer = QualityScorer()
+        result = scorer.score(_HIGH_QUALITY_HTML)
+        d = result.as_dict()
+        assert isinstance(d, dict)
+        for key in ("authority", "semantic", "structure", "engagement", "uniqueness", "overall"):
+            assert key in d
+        assert "explanations" in d
 
-    def test_clamp_within_range(self) -> None:
-        assert _clamp(50) == 50
-
-    def test_clamp_above_max(self) -> None:
-        assert _clamp(150) == 100
-
-    def test_clamp_below_min(self) -> None:
-        assert _clamp(-10) == 0
-
-
-# ---------------------------------------------------------------------------
-# QualityScorer.score()
-# ---------------------------------------------------------------------------
-
-class TestScoreOutputStructure:
-    def test_returns_dict(self, scorer: QualityScorer) -> None:
-        result = scorer.score(RICH_PAGE)
-        assert isinstance(result, dict)
-
-    def test_has_all_metric_keys(self, scorer: QualityScorer) -> None:
-        result = scorer.score(RICH_PAGE)
-        for key in (
-            "authority_score",
-            "semantic_richness_score",
-            "structure_score",
-            "engagement_potential_score",
-            "uniqueness_score",
-            "overall_score",
-        ):
-            assert key in result, f"Missing key: {key}"
-
-    def test_all_scores_in_range(self, scorer: QualityScorer) -> None:
-        result = scorer.score(RICH_PAGE)
-        for key in (
-            "authority_score", "semantic_richness_score", "structure_score",
-            "engagement_potential_score", "uniqueness_score", "overall_score",
-        ):
-            score = result[key]
-            assert 0 <= score <= 100, f"{key}={score} out of range"
-
-    def test_overall_is_mean_of_five(self, scorer: QualityScorer) -> None:
-        result = scorer.score(RICH_PAGE)
-        five = [
-            result["authority_score"],
-            result["semantic_richness_score"],
-            result["structure_score"],
-            result["engagement_potential_score"],
-            result["uniqueness_score"],
-        ]
-        expected = round(sum(five) / 5)
-        assert result["overall_score"] == expected
-
-    def test_has_breakdown_key(self, scorer: QualityScorer) -> None:
-        result = scorer.score(RICH_PAGE)
-        assert "breakdown" in result
-        for metric in ("authority", "semantic_richness", "structure", "engagement", "uniqueness"):
-            assert metric in result["breakdown"]
-
-    def test_breakdown_has_positives_and_suggestions(self, scorer: QualityScorer) -> None:
-        result = scorer.score(RICH_PAGE)
-        for metric in result["breakdown"].values():
-            assert "positives" in metric
-            assert "suggestions" in metric
-            assert isinstance(metric["positives"], list)
-            assert isinstance(metric["suggestions"], list)
-
-    def test_has_recommendations_list(self, scorer: QualityScorer) -> None:
-        result = scorer.score(RICH_PAGE)
-        assert "recommendations" in result
-        assert isinstance(result["recommendations"], list)
-
-    def test_breakdown_band_is_string(self, scorer: QualityScorer) -> None:
-        result = scorer.score(RICH_PAGE)
-        for metric in result["breakdown"].values():
-            assert isinstance(metric["band"], str)
+    def test_explanations_have_all_dimensions(self) -> None:
+        scorer = QualityScorer()
+        result = scorer.score(_HIGH_QUALITY_HTML)
+        for dim in ("authority", "semantic", "structure", "engagement", "uniqueness"):
+            assert dim in result.explanations
+            assert isinstance(result.explanations[dim], list)
 
 
 # ---------------------------------------------------------------------------
-# Rich page scores higher than minimal page
+# Test: High-quality content scores higher than low-quality
 # ---------------------------------------------------------------------------
 
-class TestScoringRelative:
-    def test_rich_page_authority_higher_than_minimal(self, scorer: QualityScorer) -> None:
-        rich = scorer.score(RICH_PAGE)["authority_score"]
-        minimal = scorer.score(MINIMAL_PAGE)["authority_score"]
-        assert rich > minimal
 
-    def test_rich_page_semantic_higher_than_minimal(self, scorer: QualityScorer) -> None:
-        rich = scorer.score(RICH_PAGE)["semantic_richness_score"]
-        minimal = scorer.score(MINIMAL_PAGE)["semantic_richness_score"]
-        assert rich > minimal
+class TestQualityScorerRelativeScores:
+    def test_high_quality_overall_exceeds_low_quality(self) -> None:
+        scorer = QualityScorer()
+        high = scorer.score(_HIGH_QUALITY_HTML)
+        low = scorer.score(_LOW_QUALITY_HTML)
+        assert high.overall > low.overall
 
-    def test_rich_page_structure_higher_than_minimal(self, scorer: QualityScorer) -> None:
-        rich = scorer.score(RICH_PAGE)["structure_score"]
-        minimal = scorer.score(MINIMAL_PAGE)["structure_score"]
-        assert rich > minimal
+    def test_high_quality_authority_exceeds_low(self) -> None:
+        scorer = QualityScorer()
+        high = scorer.score(_HIGH_QUALITY_HTML)
+        low = scorer.score(_LOW_QUALITY_HTML)
+        assert high.authority > low.authority
 
-    def test_rich_page_engagement_higher_than_minimal(self, scorer: QualityScorer) -> None:
-        rich = scorer.score(RICH_PAGE)["engagement_potential_score"]
-        minimal = scorer.score(MINIMAL_PAGE)["engagement_potential_score"]
-        assert rich > minimal
+    def test_high_quality_structure_exceeds_low(self) -> None:
+        scorer = QualityScorer()
+        high = scorer.score(_HIGH_QUALITY_HTML)
+        low = scorer.score(_LOW_QUALITY_HTML)
+        assert high.structure > low.structure
 
-    def test_rich_page_overall_above_60(self, scorer: QualityScorer) -> None:
-        result = scorer.score(RICH_PAGE)
-        assert result["overall_score"] >= 60
+    def test_high_quality_uniqueness_exceeds_low(self) -> None:
+        scorer = QualityScorer()
+        high = scorer.score(_HIGH_QUALITY_HTML)
+        low = scorer.score(_LOW_QUALITY_HTML)
+        # High quality has no placeholder phrases; low quality does.
+        # Both are capped by word count, but low quality has additional
+        # placeholder penalty so it cannot exceed high quality.
+        assert high.uniqueness >= low.uniqueness
 
-    def test_minimal_page_overall_below_rich(self, scorer: QualityScorer) -> None:
-        rich = scorer.score(RICH_PAGE)["overall_score"]
-        minimal = scorer.score(MINIMAL_PAGE)["overall_score"]
-        assert rich > minimal
+    def test_placeholder_content_has_low_uniqueness(self) -> None:
+        scorer = QualityScorer()
+        result = scorer.score(_LOW_QUALITY_HTML)
+        # Low quality with placeholder phrases should score below 50
+        assert result.uniqueness <= 50.0
 
-
-# ---------------------------------------------------------------------------
-# score_batch()
-# ---------------------------------------------------------------------------
-
-class TestScoreBatch:
-    def test_score_batch_returns_list(self, scorer: QualityScorer) -> None:
-        results = scorer.score_batch([RICH_PAGE, MINIMAL_PAGE])
-        assert isinstance(results, list)
-        assert len(results) == 2
-
-    def test_score_batch_includes_page_id(self, scorer: QualityScorer) -> None:
-        pages = [{**RICH_PAGE, "id": 42}, {**MINIMAL_PAGE, "id": 99}]
-        results = scorer.score_batch(pages)
-        assert results[0]["page_id"] == 42
-        assert results[1]["page_id"] == 99
-
-    def test_score_batch_no_page_id_still_returns_scores(self, scorer: QualityScorer) -> None:
-        results = scorer.score_batch([RICH_PAGE])
-        assert "overall_score" in results[0]
-        assert "page_id" not in results[0]
-
-    def test_score_batch_empty_list(self, scorer: QualityScorer) -> None:
-        results = scorer.score_batch([])
-        assert results == []
+    def test_markdown_scores_reasonably(self) -> None:
+        scorer = QualityScorer()
+        result = scorer.score(_MARKDOWN_CONTENT)
+        assert result.overall > 20.0
 
 
 # ---------------------------------------------------------------------------
-# quality_label() and color_for_score()
+# Test: Authority score dimension
 # ---------------------------------------------------------------------------
 
-class TestLabelsAndColors:
-    def test_quality_label_approve(self, scorer: QualityScorer) -> None:
-        assert scorer.quality_label(90) == "Approve"
-        assert scorer.quality_label(85) == "Approve"
 
-    def test_quality_label_approve_with_notes(self, scorer: QualityScorer) -> None:
-        assert scorer.quality_label(80) == "Approve with notes"
-        assert scorer.quality_label(70) == "Approve with notes"
+class TestAuthorityScore:
+    def test_no_citations_lowers_authority(self) -> None:
+        scorer = QualityScorer()
+        result = scorer.score("<p>We are the best agency.</p>")
+        assert result.authority < 50.0
 
-    def test_quality_label_needs_revision(self, scorer: QualityScorer) -> None:
-        assert scorer.quality_label(60) == "Needs Revision"
-        assert scorer.quality_label(55) == "Needs Revision"
+    def test_statistics_improve_authority(self) -> None:
+        scorer = QualityScorer()
+        result_no_stats = scorer.score("<p>We help businesses rank higher.</p>")
+        result_with_stats = scorer.score(
+            "<p>According to Google, 46% of searches have local intent. "
+            "Research shows 3× increase in leads. Data suggests 80% improvement.</p>"
+        )
+        assert result_with_stats.authority > result_no_stats.authority
 
-    def test_quality_label_reject(self, scorer: QualityScorer) -> None:
-        assert scorer.quality_label(40) == "Reject"
-        assert scorer.quality_label(0) == "Reject"
+    def test_competitor_mentions_improve_authority(self) -> None:
+        scorer = QualityScorer()
+        result_no_comp = scorer.score("<p>We are a great SEO agency.</p>")
+        result_with_comp = scorer.score(
+            "<p>Compared to competitors like Thrive and WebFX, "
+            "we deliver versus industry rivals. Unlike alternatives, "
+            "we guarantee results.</p>"
+        )
+        assert result_with_comp.authority > result_no_comp.authority
 
-    def test_color_for_score_green(self, scorer: QualityScorer) -> None:
-        assert scorer.color_for_score(90) == "green"
-        assert scorer.color_for_score(85) == "green"
-
-    def test_color_for_score_yellow(self, scorer: QualityScorer) -> None:
-        assert scorer.color_for_score(75) == "yellow"
-        assert scorer.color_for_score(70) == "yellow"
-
-    def test_color_for_score_orange(self, scorer: QualityScorer) -> None:
-        assert scorer.color_for_score(60) == "orange"
-        assert scorer.color_for_score(55) == "orange"
-
-    def test_color_for_score_red(self, scorer: QualityScorer) -> None:
-        assert scorer.color_for_score(40) == "red"
-        assert scorer.color_for_score(0) == "red"
+    def test_named_sources_improve_authority(self) -> None:
+        scorer = QualityScorer()
+        result = scorer.score(
+            "<p>According to Google and HubSpot research, SEMrush data shows...</p>"
+        )
+        assert result.authority > 20.0
 
 
 # ---------------------------------------------------------------------------
-# Edge cases
+# Test: Structure score dimension
 # ---------------------------------------------------------------------------
+
+
+class TestStructureScore:
+    def test_single_h1_gives_full_h1_score(self) -> None:
+        scorer = QualityScorer()
+        result = scorer.score("<h1>Title</h1><h2>Section</h2>")
+        # Should get H1 points
+        assert result.structure > 10.0
+
+    def test_no_headings_gives_low_structure(self) -> None:
+        scorer = QualityScorer()
+        result = scorer.score("<p>Just a paragraph with no headings at all.</p>")
+        assert result.structure < 30.0
+
+    def test_schema_markup_improves_structure(self) -> None:
+        scorer = QualityScorer()
+        without_schema = scorer.score(
+            "<h1>Title</h1><h2>Section 1</h2><h2>Section 2</h2>"
+        )
+        with_schema = scorer.score(
+            '<script type="application/ld+json">{}</script>'
+            "<h1>Title</h1><h2>Section 1</h2><h2>Section 2</h2>"
+        )
+        assert with_schema.structure > without_schema.structure
+
+    def test_multiple_h2_improves_structure(self) -> None:
+        scorer = QualityScorer()
+        one_h2 = scorer.score("<h1>Title</h1><h2>Only One Section</h2>")
+        many_h2 = scorer.score(
+            "<h1>T</h1><h2>S1</h2><h2>S2</h2><h2>S3</h2><h2>S4</h2>"
+        )
+        assert many_h2.structure > one_h2.structure
+
+    def test_markdown_h1_and_h2_detected(self) -> None:
+        scorer = QualityScorer()
+        result = scorer.score("# Title\n\n## Section A\n\n## Section B\n\n## Section C\n\n## Section D")
+        assert result.structure > 20.0
+
+
+# ---------------------------------------------------------------------------
+# Test: Uniqueness score dimension
+# ---------------------------------------------------------------------------
+
+
+class TestUniquenessScore:
+    def test_placeholder_text_zeros_uniqueness(self) -> None:
+        scorer = QualityScorer()
+        result = scorer.score(
+            "This is a generated page about local SEO. Lorem ipsum placeholder. TODO."
+        )
+        # With placeholder phrases and short content, uniqueness should be <= 30
+        assert result.uniqueness <= 30.0
+
+    def test_specific_content_has_high_uniqueness(self) -> None:
+        scorer = QualityScorer()
+        result = scorer.score(
+            "Pacific Plumbing achieved 3× call volume growth by optimising "
+            "their Google Business Profile for 12 location-specific keywords. "
+            "The campaign delivered 2,400 additional monthly calls within 60 days. "
+            "This was measured using call tracking software integrated with GA4. "
+            "The team focused on citation consistency across 85 directories. "
+            "Their NAP data was updated across Yelp, Yellow Pages, and Bing Places. "
+            "The result: #1 map-pack ranking for 'plumber [city]' in all 4 target areas."
+        )
+        # Specific content has no placeholder phrases; only word-count cap applies
+        assert result.uniqueness >= 30.0
+
+    def test_short_content_capped_uniqueness(self) -> None:
+        scorer = QualityScorer()
+        # Short but specific content — uniqueness capped due to word count
+        result = scorer.score("Local SEO drives revenue.")
+        assert result.uniqueness <= 60.0
+
+
+# ---------------------------------------------------------------------------
+# Test: page_data integration
+# ---------------------------------------------------------------------------
+
+
+class TestPageDataIntegration:
+    def test_keyword_match_improves_semantic_score(self) -> None:
+        scorer = QualityScorer()
+        page_data = {"primary_keyword": "local seo services"}
+        result_match = scorer.score(
+            "local seo services that drive revenue for your business", page_data
+        )
+        result_no_match = scorer.score(
+            "digital marketing that drives revenue for your business", page_data
+        )
+        assert result_match.semantic > result_no_match.semantic
+
+    def test_empty_page_data_does_not_raise(self) -> None:
+        scorer = QualityScorer()
+        result = scorer.score("<h1>Title</h1>", {})
+        assert isinstance(result, QualityScoreResult)
+
+    def test_none_page_data_does_not_raise(self) -> None:
+        scorer = QualityScorer()
+        result = scorer.score("<h1>Title</h1>", None)
+        assert isinstance(result, QualityScoreResult)
+
+
+# ---------------------------------------------------------------------------
+# Test: empty / edge case content
+# ---------------------------------------------------------------------------
+
 
 class TestEdgeCases:
-    def test_empty_dict_does_not_raise(self, scorer: QualityScorer) -> None:
-        result = scorer.score({})
-        assert "overall_score" in result
-        assert 0 <= result["overall_score"] <= 100
+    def test_empty_content_returns_all_zeros(self) -> None:
+        scorer = QualityScorer()
+        result = scorer.score("")
+        # Empty content should score 0 on dimensions that require content,
+        # with overall close to zero.
+        assert result.authority == 0.0
+        assert result.semantic == 0.0
+        assert result.structure == 0.0
+        assert result.engagement == 0.0
+        assert result.overall < 10.0
 
-    def test_none_values_do_not_raise(self, scorer: QualityScorer) -> None:
-        page = {
-            "semantic_core": None,
-            "structure": None,
-            "competitor_intelligence": None,
-            "hub_and_spoke": None,
-            "content_markdown": None,
-        }
-        result = scorer.score(page)
-        assert "overall_score" in result
+    def test_whitespace_only_content(self) -> None:
+        scorer = QualityScorer()
+        result = scorer.score("   \n\t  ")
+        assert result.overall >= 0.0
 
-    def test_suggestions_provided_for_minimal_page(self, scorer: QualityScorer) -> None:
-        result = scorer.score(MINIMAL_PAGE)
-        assert len(result["recommendations"]) > 0
-
-    def test_positives_provided_for_rich_page(self, scorer: QualityScorer) -> None:
-        result = scorer.score(RICH_PAGE)
-        total_positives = sum(
-            len(m["positives"]) for m in result["breakdown"].values()
+    def test_very_long_content_does_not_error(self) -> None:
+        scorer = QualityScorer()
+        long_content = (
+            "<h1>Title</h1>"
+            + "<h2>Section</h2><p>According to research, 50% of businesses saw results. "
+            "We helped clients increase revenue by 3×. Case study: Company X grew leads. "
+            "Compared to Thrive Agency, our ROI is better. Get your free audit today. "
+            "Book a consultation now. Schedule your call. "
+            "Certified Google Partner. Award-winning team. </p>" * 100
         )
-        assert total_positives > 0
+        result = scorer.score(long_content)
+        for dim in ("authority", "semantic", "structure", "engagement", "uniqueness", "overall"):
+            val = getattr(result, dim)
+            assert 0.0 <= val <= 100.0

@@ -1,693 +1,502 @@
 """
 quality_scorer.py
 
-Five-metric quality scoring engine for the Decoupled SEO Site Factory.
+Multi-dimensional content quality scoring that goes beyond basic SEO metrics.
 
-Every page object is evaluated on five dimensions (0–100 each):
+Five dimensions are measured:
 
-  1. Authority Score        — E-E-A-T signals (sources, competitor mentions, data)
-  2. Semantic Richness      — LSI keywords, entity density, topic coverage depth
-  3. Structure Score        — Heading hierarchy, schema markup, internal links
-  4. Engagement Potential   — Problem-Solution-Result narrative, CTA strength
-  5. Uniqueness Score       — Information gain vs. competitors, original angles
+1. **Authority Score**      — Competitor mentions, data citations, statistics,
+                              named sources, and case study references.
+2. **Semantic Richness**    — Entity density, topic-specific terminology,
+                              LSI keyword coverage, and vocabulary diversity.
+3. **Structure Score**      — HTML heading hierarchy, schema markup presence,
+                              CTA placement, and proper section organisation.
+4. **Engagement Potential** — Benefit-driven language, CTA clarity, numbered
+                              lists, rhetorical questions, and power words.
+5. **Uniqueness Score**     — Absence of generic filler phrases, generic
+                              sentence starters, and placeholder boilerplate.
 
-Overall = mean of the five metric scores (rounded to nearest integer).
-
-Usage::
-
-    scorer = QualityScorer()
-    scores = scorer.score(page_data)
-    # scores['overall_score'] == 87 (example)
+Each dimension returns a float 0–100.  The ``overall`` score is a weighted
+average.
 """
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass, field
 from typing import Any
 
 # ---------------------------------------------------------------------------
-# Module-level compiled patterns (avoid re-compilation on every call)
+# Weights for the overall score
 # ---------------------------------------------------------------------------
 
-_CITATION_PATTERN = re.compile(
-    r'(?:according to|cited by|source:|reference:|per |as reported by)',
+_WEIGHTS: dict[str, float] = {
+    "authority": 0.25,
+    "semantic": 0.20,
+    "structure": 0.25,
+    "engagement": 0.15,
+    "uniqueness": 0.15,
+}
+
+# ---------------------------------------------------------------------------
+# Signals used by each dimension
+# ---------------------------------------------------------------------------
+
+# Authority signals — broken into named sub-patterns for readability
+_CITATION_DATA_WORDS = (
+    r"according to|study shows?|research (shows?|finds?|found|indicates?)|"
+    r"data (shows?|suggests?)|survey|report by|published in|source:"
+)
+_CITATION_PATTERNS = re.compile(
+    rf"\b(\d{{1,3}}%|\d+\s*percent|{_CITATION_DATA_WORDS})\b",
     re.IGNORECASE,
 )
-_COMP_MENTION_PATTERN = re.compile(
-    r'\b(?:[A-Z][a-z]+(?:labs?|io|\.com|\.net|ly)?)\b',
-)
-_STAT_PATTERN = re.compile(
-    r'\d+\s*%|\d+x\s+(?:faster|slower|more|less)',
+_NAMED_SOURCE_PATTERN = re.compile(
+    r"\b(google|gartner|forrester|mckinsey|harvard|mit|stanford|statista|"
+    r"hubspot|semrush|ahrefs|moz|search engine journal|search engine land|"
+    r"neil patel|rand fishkin|backlinko)\b",
     re.IGNORECASE,
 )
-_AUTHOR_PATTERN = re.compile(r'\bauthor[:\s]', re.IGNORECASE)
-_SUPERLATIVE_PATTERN = re.compile(
-    r'\bguaranteed\b|\bbest in class\b|\bworld-class\b',
-    re.IGNORECASE,
-)
-_PROBLEM_PATTERN = re.compile(
-    r'\b(struggle|challenge|problem|pain point|issue|fail)\b',
-    re.IGNORECASE,
-)
-_SOLUTION_PATTERN = re.compile(
-    r'\b(solution|solve|fix|address|resolve|framework|approach)\b',
-    re.IGNORECASE,
-)
-_RESULT_PATTERN = re.compile(
-    r'\b(result|outcome|achieve|improve|reduce|increase|case study)\b',
-    re.IGNORECASE,
-)
-_BENEFIT_PATTERN = re.compile(
-    r'\b(reduce|save|increase|improve|achieve|accelerate|eliminate|grow)\b[^.]*\b\d+[%x]?\b',
-    re.IGNORECASE,
-)
-_BULLET_PATTERN = re.compile(r'^[\s]*[-*•]\s', re.MULTILINE)
-_RECENCY_PATTERN = re.compile(r'\b(202[4-9]|2030)\b')
-_DIFF_STATEMENT_PATTERN = re.compile(
-    r'\bunlike\b|\bcompared to\b|\bversus\b|\bdifferent from\b',
-    re.IGNORECASE,
-)
-_RESEARCH_STAT_PATTERN = re.compile(
-    r'\b\d+\s*%\s+(?:of|say|report|agree)',
-    re.IGNORECASE,
-)
-_FRAMEWORK_PATTERN = re.compile(
-    r'\b(?:framework|methodology|approach|process|model|system)\b',
+_COMPETITOR_MENTION_PATTERN = re.compile(
+    r"\b(competitor|alternative|compare|vs\.?|versus|unlike|similar to|"
+    r"industry leader|market leader|top agenc|rival)\b",
     re.IGNORECASE,
 )
 _CASE_STUDY_PATTERN = re.compile(
-    r'\bcase study\b|\bclient\b.{0,30}\b\d+%\b',
+    r"\b(case study|success story|client result|how we helped|before and after|"
+    r"increased by|grew by|reduced by|achieved|delivered|resulted in)\b",
     re.IGNORECASE,
 )
 
-# Schema marker patterns (compiled once at module level)
-_SCHEMA_MARKERS: dict[str, re.Pattern[str]] = {
-    "Organization schema": re.compile(r'"@type"\s*:\s*"Organization"', re.IGNORECASE),
-    "FAQ schema": re.compile(r'"@type"\s*:\s*"FAQPage"', re.IGNORECASE),
-    "BreadcrumbList schema": re.compile(r'"@type"\s*:\s*"BreadcrumbList"', re.IGNORECASE),
-    "Article schema": re.compile(r'"@type"\s*:\s*"Article"', re.IGNORECASE),
-}
+# Semantic richness signals
+_GENERIC_FILLER = re.compile(
+    r"\b(in today's (world|digital|landscape)|it is (important|crucial|vital|"
+    r"essential) to|in (conclusion|summary|today)|leverag(e|ing) (the power of|"
+    r"our|your)|in the (fast-paced|ever-changing|dynamic)|game.changer|"
+    r"take.*to the next level|think outside the box|move the needle)\b",
+    re.IGNORECASE,
+)
+_TECHNICAL_TERM_DENSITY_PATTERN = re.compile(
+    r"\b([A-Z][a-z]*(?:[A-Z][a-z]*)+|[A-Z]{2,})\b"  # CamelCase or ACRONYM
+)
+
+# Structure signals
+_H1_PATTERN = re.compile(r"<h1[^>]*>.*?</h1>", re.IGNORECASE | re.DOTALL)
+_H2_PATTERN = re.compile(r"<h2[^>]*>.*?</h2>", re.IGNORECASE | re.DOTALL)
+_H3_PATTERN = re.compile(r"<h3[^>]*>.*?</h3>", re.IGNORECASE | re.DOTALL)
+_SCHEMA_PATTERN = re.compile(
+    r'(application/ld\+json|itemtype|itemscope|schema\.org)', re.IGNORECASE
+)
+_CTA_PATTERN = re.compile(
+    r"\b(get (started|a (free|quote)|your|in touch)|contact us|schedule (a|your)|"
+    r"book (a|your|now)|request (a|your|demo)|download|sign up|learn more|"
+    r"start (your|a|now)|try (it|for free)|get (the|your) (guide|ebook|report))\b",
+    re.IGNORECASE,
+)
+_TRUST_SECTION_PATTERN = re.compile(
+    r"(trust|testimonial|review|client|award|certif|accredit|partner|result)",
+    re.IGNORECASE,
+)
+# Markdown heading fallbacks
+_MD_H1 = re.compile(r"^#\s+.+", re.MULTILINE)
+_MD_H2 = re.compile(r"^##\s+.+", re.MULTILINE)
+_MD_H3 = re.compile(r"^###\s+.+", re.MULTILINE)
+
+# Engagement signals
+_POWER_WORDS = re.compile(
+    r"\b(proven|guaranteed|exclusive|instant|free|save|easy|simple|fast|quick|"
+    r"powerful|transform|boost|double|triple|skyrocket|unlock|discover|secret|"
+    r"ultimate|complete|comprehensive|essential|critical|important|must|need to|"
+    r"you (can|will|should|must)|your (business|company|brand|team|clients?))\b",
+    re.IGNORECASE,
+)
+_BENEFIT_LANGUAGE = re.compile(
+    r"\b(result(s|ing in)?|outcome|achiev|deliver|increas|grow|improve|reduc|"
+    r"sav(e|ing)|generat|earn|gain|benefit|value|return|ROI|profit|revenue|"
+    r"rank(ing)?|traffic|lead|conversion)\b",
+    re.IGNORECASE,
+)
+_LIST_PATTERN = re.compile(r"(<li>|^\s*[\*\-•]\s+|\d+\.\s+)", re.MULTILINE)
+_QUESTION_PATTERN = re.compile(r"\?")
+
+# Uniqueness / anti-generic signals
+_PLACEHOLDER_PHRASES = re.compile(
+    r"(this is a generated page about|lorem ipsum|placeholder|todo|tbd|"
+    r"insert.*here|add.*content|coming soon|under construction|"
+    r"generic (content|template)|example (page|content|text))",
+    re.IGNORECASE,
+)
+_BANNED_OPENERS = re.compile(
+    r"^(in (today|this|our|the)|it is|there (is|are)|as (a|an|the)|"
+    r"when it comes to|the fact (is|that)|needless to say)",
+    re.IGNORECASE | re.MULTILINE,
+)
 
 
 # ---------------------------------------------------------------------------
-# Score band helpers
+# Result dataclass
 # ---------------------------------------------------------------------------
 
-def _score_band(score: int) -> str:
-    """Return a human-readable band label for a 0–100 score."""
-    if score >= 90:
-        return "Excellent"
-    if score >= 80:
-        return "Strong"
-    if score >= 70:
-        return "Good"
-    if score >= 60:
-        return "Fair"
-    return "Needs Work"
 
+@dataclass
+class QualityScoreResult:
+    """Holds scores and per-dimension explanations."""
 
-def _clamp(value: int, lo: int = 0, hi: int = 100) -> int:
-    return max(lo, min(hi, value))
+    authority: float = 0.0
+    semantic: float = 0.0
+    structure: float = 0.0
+    engagement: float = 0.0
+    uniqueness: float = 0.0
+    overall: float = 0.0
+    explanations: dict[str, list[str]] = field(default_factory=dict)
 
-
-# ---------------------------------------------------------------------------
-# Metric 1: Authority Score (E-E-A-T)
-# ---------------------------------------------------------------------------
-
-def _score_authority(page: dict[str, Any]) -> tuple[int, list[str], list[str]]:
-    """
-    Score E-E-A-T authority signals.
-
-    Returns (score, positives, suggestions).
-    """
-    positives: list[str] = []
-    suggestions: list[str] = []
-    raw = 0
-
-    # Cited industry sources (up to 3 = +45)
-    semantic_core: dict[str, Any] = page.get("semantic_core") or {}
-    content_md: str = page.get("content_markdown") or page.get("content_body", "")
-    content_lower = content_md.lower()
-
-    # Count source citations inferred from content or explicit field
-    cited_sources: list[str] = []
-    competitor_intel: dict[str, Any] = page.get("competitor_intelligence") or {}
-    benchmarks: list[dict[str, Any]] = competitor_intel.get("benchmarked_against") or []
-    # Each benchmark entry counts as knowledge of a competitor source
-    source_count = min(len(benchmarks), 3)
-    # Also look for citation patterns in content ("[source]", "according to", etc.)
-    citation_matches = _CITATION_PATTERN.findall(content_lower)
-    source_count = _clamp(source_count + len(citation_matches), 0, 3)
-    raw += source_count * 15
-    if source_count > 0:
-        positives.append(f"{source_count} industry source(s) cited")
-    else:
-        suggestions.append("Add at least 1 cited industry source (Gartner, Forrester, etc.)")
-
-    # Unbiased competitor mentions (up to 5 = +50)
-    comp_advantages: list[str] = competitor_intel.get("competitive_advantage") or []
-    # Count mentions of competitors in content
-    comp_mentions = len(_COMP_MENTION_PATTERN.findall(content_md))
-    # Clamp to realistic range for competitor mentions
-    comp_mention_count = min(max(len(comp_advantages), comp_mentions // 10), 5)
-    raw += comp_mention_count * 10
-    if comp_mention_count > 0:
-        positives.append(f"{comp_mention_count} unbiased competitor mention(s)")
-    else:
-        suggestions.append("Mention 1–5 competitors by name to signal confidence and unbiased expertise")
-
-    # Original data points (up to 2 = +20)
-    data_count = 0
-    # Detect statistics / survey data in content
-    stat_matches = _STAT_PATTERN.findall(content_lower)
-    data_count = min(len(stat_matches), 2)
-    raw += data_count * 10
-    if data_count > 0:
-        positives.append(f"{data_count} original data point(s) / statistic(s)")
-    else:
-        suggestions.append("Add 1–2 original statistics or case-study metrics")
-
-    # Author byline (+5)
-    if page.get("author") or _AUTHOR_PATTERN.search(content_lower):
-        raw += 5
-        positives.append("Author byline present")
-    else:
-        suggestions.append("Add an author byline with credentials")
-
-    # Recency date (+5)
-    if page.get("last_modified_at") or _RECENCY_PATTERN.search(content_md):
-        raw += 5
-        positives.append("Recency date visible (within last 2 years)")
-    else:
-        suggestions.append("Add a visible 'last updated' date")
-
-    # Penalties
-    if _SUPERLATIVE_PATTERN.search(content_lower):
-        raw -= 10
-        suggestions.append("Remove unsubstantiated superlatives ('guaranteed', 'world-class')")
-
-    score = _clamp(raw)
-    return score, positives, suggestions
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "authority": round(self.authority, 1),
+            "semantic": round(self.semantic, 1),
+            "structure": round(self.structure, 1),
+            "engagement": round(self.engagement, 1),
+            "uniqueness": round(self.uniqueness, 1),
+            "overall": round(self.overall, 1),
+            "explanations": self.explanations,
+        }
 
 
 # ---------------------------------------------------------------------------
-# Metric 2: Semantic Richness (LSI & Entity Density)
+# Scorer
 # ---------------------------------------------------------------------------
 
-def _score_semantic_richness(page: dict[str, Any]) -> tuple[int, list[str], list[str]]:
-    positives: list[str] = []
-    suggestions: list[str] = []
-    raw = 0
-
-    semantic_core: dict[str, Any] = page.get("semantic_core") or {}
-    lsi_keywords: list[str] = semantic_core.get("lsi_keywords") or []
-    entities: list[dict[str, Any]] = semantic_core.get("entities") or []
-
-    # LSI keywords (8 optimal, diminishing return >12, cap at 64+)
-    lsi_count = len(lsi_keywords)
-    if lsi_count >= 8:
-        raw += min(lsi_count, 12) * 8
-        positives.append(f"{lsi_count} LSI keywords detected (optimal: 8–12)")
-    elif lsi_count > 0:
-        raw += lsi_count * 8
-        suggestions.append(f"Add more LSI keywords ({lsi_count}/8 minimum found)")
-    else:
-        suggestions.append("No LSI keywords found — add semantic variations of the target keyword")
-
-    # Entity density (unique entities mentioned 3+ times)
-    strong_entities = [e for e in entities if e.get("mentions", 0) >= 3]
-    raw += len(strong_entities) * 5
-    if strong_entities:
-        positives.append(f"{len(strong_entities)} strong entity mention(s) (3+ times each)")
-    else:
-        suggestions.append("Build entity density: mention key concepts 3+ times each")
-
-    # Topic coverage depth
-    topic_coverage: dict[str, Any] = semantic_core.get("topic_coverage") or {}
-    if topic_coverage.get("problem") and topic_coverage.get("solution") and topic_coverage.get("result"):
-        raw += 15
-        positives.append("Ultimate Guide structure: Problem → Solution → Result detected")
-    elif topic_coverage.get("problem") or topic_coverage.get("solution"):
-        raw += 8
-        suggestions.append("Complete the Problem-Solution-Result narrative for full depth score")
-    else:
-        suggestions.append("Add topic_coverage with problem, solution, and result angles")
-
-    # H2 sections depth
-    structure: dict[str, Any] = page.get("structure") or {}
-    h2_sections: list[dict[str, Any]] = structure.get("h2_sections") or []
-    if len(h2_sections) >= 5:
-        raw += 10
-        positives.append(f"{len(h2_sections)} H2 sections provide comprehensive subtopic coverage")
-    elif len(h2_sections) >= 3:
-        raw += 5
-        suggestions.append(f"Add {5 - len(h2_sections)} more H2 sections for comprehensive subtopic coverage")
-    else:
-        suggestions.append("Add at least 5 H2 sections with unique subtopic angles")
-
-    # Spoke uniqueness vs hub
-    role = page.get("role", "spoke")
-    if role == "spoke":
-        hub_page_id = page.get("hub_page_id")
-        if hub_page_id:
-            raw += 10
-            positives.append("Spoke page covers unique angle differentiated from hub")
-
-    score = _clamp(raw)
-    return score, positives, suggestions
-
-
-# ---------------------------------------------------------------------------
-# Metric 3: Structure & Schema Validation
-# ---------------------------------------------------------------------------
-
-def _score_structure(page: dict[str, Any]) -> tuple[int, list[str], list[str]]:
-    positives: list[str] = []
-    suggestions: list[str] = []
-    raw = 0
-
-    structure: dict[str, Any] = page.get("structure") or {}
-    content_md: str = page.get("content_markdown") or page.get("content_body", "")
-
-    # H1 — single, descriptive, <60 chars
-    h1 = page.get("h1") or structure.get("h1") or ""
-    if h1:
-        raw += 20
-        if len(h1) <= 60:
-            positives.append(f"Valid H1 ({len(h1)} chars, within 60-char limit)")
-        else:
-            suggestions.append(f"Shorten H1 to <60 chars (currently {len(h1)} chars)")
-    else:
-        suggestions.append("Add an H1 heading to the page")
-
-    # H2 sections
-    h2_sections: list[dict[str, Any]] = structure.get("h2_sections") or []
-    h2_count = len(h2_sections)
-    if 3 <= h2_count <= 5:
-        raw += 15
-        positives.append(f"{h2_count} H2 sections (optimal range 3–5)")
-    elif h2_count > 5:
-        raw += 10
-        positives.append(f"{h2_count} H2 sections present")
-    elif h2_count > 0:
-        raw += 5
-        suggestions.append(f"Add {3 - h2_count} more H2 sections (minimum 3)")
-    else:
-        suggestions.append("Add H2 sections to the page structure")
-
-    # H3 subsections
-    h3_count = sum(len(s.get("subsections") or []) for s in h2_sections)
-    if h3_count > 0:
-        raw += 10
-        positives.append(f"{h3_count} H3 subsections provide logical hierarchy")
-    else:
-        suggestions.append("Add H3 subsections under each H2 for deeper structure")
-
-    # Schema markup — use module-level compiled patterns
-    content_html: str = page.get("content_html") or ""
-    combined = content_md + content_html
-    schema_found: list[str] = []
-    for schema_name, pattern in _SCHEMA_MARKERS.items():
-        if pattern.search(combined):
-            schema_found.append(schema_name)
-
-    schema_points = {
-        "Organization schema": 15,
-        "FAQ schema": 10,
-        "BreadcrumbList schema": 10,
-        "Article schema": 5,
-    }
-    for schema in schema_found:
-        raw += schema_points.get(schema, 5)
-        positives.append(f"{schema} present")
-    for schema in _SCHEMA_MARKERS:
-        if schema not in schema_found:
-            suggestions.append(f"Add {schema} for richer search engine understanding")
-
-    # Internal link integrity (hub-spoke)
-    hub_and_spoke: dict[str, Any] = page.get("hub_and_spoke") or {}
-    role = page.get("role", "spoke")
-    spokes: list[dict[str, Any]] = hub_and_spoke.get("spokes") or []
-    if role == "hub" and len(spokes) > 0:
-        verified = sum(1 for s in spokes if s.get("link_status") == "verified")
-        raw += 20
-        positives.append(f"Hub page links to {len(spokes)} spoke(s) ({verified} verified)")
-    elif role == "spoke" and page.get("hub_page_id"):
-        raw += 10
-        positives.append("Spoke page links back to hub")
-    else:
-        suggestions.append("Set up hub-and-spoke internal linking for SEO equity")
-
-    # Metadata
-    meta_title = page.get("meta_title") or ""
-    meta_desc = page.get("meta_description") or ""
-    if 50 <= len(meta_title) <= 60:
-        raw += 5
-        positives.append(f"Meta title optimal length ({len(meta_title)} chars)")
-    elif meta_title:
-        raw += 3
-        suggestions.append(f"Adjust meta title to 50–60 chars (currently {len(meta_title)} chars)")
-    else:
-        suggestions.append("Add meta title (50–60 chars)")
-
-    if 155 <= len(meta_desc) <= 160:
-        raw += 5
-        positives.append(f"Meta description optimal length ({len(meta_desc)} chars)")
-    elif meta_desc:
-        raw += 3
-        suggestions.append(f"Adjust meta description to 155–160 chars (currently {len(meta_desc)} chars)")
-    else:
-        suggestions.append("Add meta description (155–160 chars)")
-
-    score = _clamp(raw)
-    return score, positives, suggestions
-
-
-# ---------------------------------------------------------------------------
-# Metric 4: Engagement Potential (Narrative & CTA Strength)
-# ---------------------------------------------------------------------------
-
-def _score_engagement(page: dict[str, Any]) -> tuple[int, list[str], list[str]]:
-    positives: list[str] = []
-    suggestions: list[str] = []
-    raw = 0
-
-    content_md: str = page.get("content_markdown") or page.get("content_body", "")
-    content_lower = content_md.lower()
-    structure: dict[str, Any] = page.get("structure") or {}
-    cta_sections: list[dict[str, Any]] = structure.get("cta_sections") or []
-    semantic_core: dict[str, Any] = page.get("semantic_core") or {}
-    topic_coverage: dict[str, Any] = semantic_core.get("topic_coverage") or {}
-
-    # Problem-Solution-Result narrative
-    has_problem = bool(
-        topic_coverage.get("problem")
-        or _PROBLEM_PATTERN.search(content_lower)
-    )
-    has_solution = bool(
-        topic_coverage.get("solution")
-        or _SOLUTION_PATTERN.search(content_lower)
-    )
-    has_result = bool(
-        topic_coverage.get("result")
-        or _RESULT_PATTERN.search(content_lower)
-    )
-
-    if has_problem:
-        raw += 25
-        positives.append("Problem statement detected in content")
-    else:
-        suggestions.append("Add a clear problem statement in the opening 100 words")
-
-    if has_solution:
-        raw += 25
-        positives.append("Solution section explains the 'how'")
-    else:
-        suggestions.append("Add a solution section describing your approach or framework")
-
-    if has_result:
-        raw += 15
-        positives.append("Result/outcome section with specific metrics or case study")
-    else:
-        suggestions.append("Add a result section with measurable outcomes (e.g., '60% faster launch')")
-
-    # CTA placement & strength
-    mid_cta = next((c for c in cta_sections if c.get("position") == "mid-page"), None)
-    end_cta = next((c for c in cta_sections if c.get("position") == "end-of-page"), None)
-
-    if mid_cta:
-        raw += 15
-        positives.append(f"Mid-page CTA: '{mid_cta.get('text', '')}'")
-        if mid_cta.get("strength") != "benefit-driven":
-            suggestions.append("Strengthen mid-page CTA with benefit-driven language")
-    else:
-        suggestions.append("Add a mid-page CTA with benefit-driven language")
-
-    if end_cta:
-        raw += 15
-        positives.append(f"End-of-page CTA: '{end_cta.get('text', '')}'")
-        if end_cta.get("strength") != "urgency":
-            suggestions.append("Strengthen end-of-page CTA with urgency language ('Claim your…')")
-    else:
-        suggestions.append("Add an end-of-page CTA with urgency language")
-
-    # CTA brand colour
-    color_override = page.get("color_override") or ""
-    if color_override:
-        raw += 5
-        positives.append("CTA uses brand primary colour")
-    else:
-        suggestions.append("Apply brand primary colour to CTA buttons")
-
-    # Benefit statements
-    benefit_matches = _BENEFIT_PATTERN.findall(content_lower)
-    benefit_count = min(len(benefit_matches), 3)
-    raw += benefit_count * 5
-    if benefit_count > 0:
-        positives.append(f"{benefit_count} benefit statement(s) with quantified outcomes")
-    else:
-        suggestions.append("Add 1–3 benefit statements with quantified outcomes")
-
-    # Readability
-    paragraphs = [p.strip() for p in re.split(r'\n{2,}', content_md) if p.strip()]
-    long_paras = [p for p in paragraphs if len(p.split()) > 200]
-    if paragraphs and not long_paras:
-        raw += 5
-        positives.append("Paragraphs are scannable (<200 words each)")
-    elif long_paras:
-        suggestions.append(f"Break up {len(long_paras)} dense paragraph(s) (>200 words)")
-
-    if _BULLET_PATTERN.search(content_md):
-        raw += 5
-        positives.append("Bullet lists improve scannability")
-    else:
-        suggestions.append("Add bullet lists for improved scannability")
-
-    score = _clamp(raw)
-    return score, positives, suggestions
-
-
-# ---------------------------------------------------------------------------
-# Metric 5: Uniqueness vs. Competitors (Information Gain)
-# ---------------------------------------------------------------------------
-
-def _score_uniqueness(page: dict[str, Any]) -> tuple[int, list[str], list[str]]:
-    positives: list[str] = []
-    suggestions: list[str] = []
-    raw = 0
-
-    competitor_intel: dict[str, Any] = page.get("competitor_intelligence") or {}
-    benchmarks: list[dict[str, Any]] = competitor_intel.get("benchmarked_against") or []
-    advantages: list[str] = competitor_intel.get("competitive_advantage") or []
-    content_md: str = page.get("content_markdown") or page.get("content_body", "")
-    content_lower = content_md.lower()
-
-    # Content overlap estimation (heuristic: fewer benchmark topics that overlap = more unique)
-    if not benchmarks:
-        # No competitor data — assume moderate uniqueness
-        raw += 20
-        suggestions.append("Supply competitor URLs in competitor_intelligence to enable overlap analysis")
-    else:
-        # Count overlapping topics (topics shared with competitors)
-        overlapping_topics = 0
-        for bench in benchmarks:
-            shared_topics: list[str] = bench.get("key_topics_covered") or []
-            for topic in shared_topics:
-                if topic.lower() in content_lower:
-                    overlapping_topics += 1
-
-        total_competitor_topics = sum(
-            len(bench.get("key_topics_covered") or []) for bench in benchmarks
-        )
-        if total_competitor_topics > 0:
-            overlap_ratio = overlapping_topics / total_competitor_topics
-        else:
-            overlap_ratio = 0.0
-
-        if overlap_ratio < 0.3:
-            raw += 30
-            positives.append(f"<30% content overlap with competitors (highly original)")
-        elif overlap_ratio < 0.5:
-            raw += 20
-            positives.append(f"30–50% content overlap (some original angles)")
-            suggestions.append("Reduce overlap by differentiating sections that mirror competitors")
-        elif overlap_ratio < 0.7:
-            raw += 10
-            suggestions.append(f"50–70% content overlap — add more differentiated sections")
-        else:
-            suggestions.append(">70% overlap with competitors — regenerate to add unique value")
-
-    # Unique angles / differentiators (up to 3 = +45)
-    unique_angle_count = min(len(advantages), 3)
-    raw += unique_angle_count * 15
-    if unique_angle_count > 0:
-        positives.append(f"{unique_angle_count} unique angle(s) not found in competitors")
-    else:
-        suggestions.append("Define 1–3 competitive differentiators in competitor_intelligence")
-
-    # Information gain signals
-    # Original research/stat
-    if _RESEARCH_STAT_PATTERN.search(content_lower):
-        raw += 10
-        positives.append("Original research statistic present")
-    else:
-        suggestions.append("Add an original statistic or proprietary research finding")
-
-    # Unique framework/methodology
-    if _FRAMEWORK_PATTERN.search(content_lower):
-        raw += 10
-        positives.append("Unique framework or methodology described")
-    else:
-        suggestions.append("Describe a proprietary framework or methodology to differentiate")
-
-    # Original case study
-    if _CASE_STUDY_PATTERN.search(content_lower):
-        raw += 10
-        positives.append("Original case study or client outcome present")
-    else:
-        suggestions.append("Add an original case study with measurable client outcomes")
-
-    # Clear differentiation statement
-    if _DIFF_STATEMENT_PATTERN.search(content_lower):
-        raw += 5
-        positives.append("Clear differentiation statement vs. competitors")
-    else:
-        suggestions.append("Add an explicit differentiation statement vs. competitors")
-
-    score = _clamp(raw)
-    return score, positives, suggestions
-
-
-# ---------------------------------------------------------------------------
-# Public API
-# ---------------------------------------------------------------------------
 
 class QualityScorer:
     """
-    Evaluates a page object on five SEO quality dimensions.
+    Computes multi-dimensional quality scores for generated content.
 
-    The page object should follow the data model described in the
-    problem statement (JSON-first structure with semantic_core,
-    structure, competitor_intelligence, etc.).
+    All scoring is static text analysis — no LLM calls required.
+
+    Usage::
+
+        scorer = QualityScorer()
+        result = scorer.score(html_content, page_data)
+        print(result.overall)   # e.g. 74.3
     """
 
-    # Metric weights (equal by default, matching spec)
-    WEIGHTS: dict[str, float] = {
-        "authority_score": 1.0,
-        "semantic_richness_score": 1.0,
-        "structure_score": 1.0,
-        "engagement_potential_score": 1.0,
-        "uniqueness_score": 1.0,
-    }
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
 
-    def score(self, page: dict[str, Any]) -> dict[str, Any]:
+    def score(
+        self,
+        content: str,
+        page_data: dict[str, Any] | None = None,
+    ) -> QualityScoreResult:
         """
-        Score a page object and return a comprehensive quality report.
+        Score *content* across all five quality dimensions.
 
         Parameters
         ----------
-        page:
-            The page data dict (page object as described in the spec).
+        content:
+            The generated content string (HTML or Markdown).
+        page_data:
+            Optional page-level metadata used to improve scoring accuracy
+            (e.g. primary keyword for semantic checks).
 
         Returns
         -------
-        dict with keys:
-            ``authority_score``, ``semantic_richness_score``,
-            ``structure_score``, ``engagement_potential_score``,
-            ``uniqueness_score``, ``overall_score``,
-            ``breakdown`` (per-metric positives and suggestions),
-            ``recommendations`` (flat list of all suggestions)
+        QualityScoreResult
         """
-        auth_score, auth_pos, auth_sug = _score_authority(page)
-        sem_score, sem_pos, sem_sug = _score_semantic_richness(page)
-        struct_score, struct_pos, struct_sug = _score_structure(page)
-        eng_score, eng_pos, eng_sug = _score_engagement(page)
-        uniq_score, uniq_pos, uniq_sug = _score_uniqueness(page)
+        page_data = page_data or {}
+        result = QualityScoreResult()
 
-        overall = round(
-            (auth_score + sem_score + struct_score + eng_score + uniq_score) / 5
+        result.authority, result.explanations["authority"] = self._score_authority(
+            content, page_data
+        )
+        result.semantic, result.explanations["semantic"] = self._score_semantic(
+            content, page_data
+        )
+        result.structure, result.explanations["structure"] = self._score_structure(
+            content
+        )
+        result.engagement, result.explanations["engagement"] = self._score_engagement(
+            content
+        )
+        result.uniqueness, result.explanations["uniqueness"] = self._score_uniqueness(
+            content
         )
 
-        breakdown: dict[str, Any] = {
-            "authority": {
-                "score": auth_score,
-                "band": _score_band(auth_score),
-                "positives": auth_pos,
-                "suggestions": auth_sug,
-            },
-            "semantic_richness": {
-                "score": sem_score,
-                "band": _score_band(sem_score),
-                "positives": sem_pos,
-                "suggestions": sem_sug,
-            },
-            "structure": {
-                "score": struct_score,
-                "band": _score_band(struct_score),
-                "positives": struct_pos,
-                "suggestions": struct_sug,
-            },
-            "engagement": {
-                "score": eng_score,
-                "band": _score_band(eng_score),
-                "positives": eng_pos,
-                "suggestions": eng_sug,
-            },
-            "uniqueness": {
-                "score": uniq_score,
-                "band": _score_band(uniq_score),
-                "positives": uniq_pos,
-                "suggestions": uniq_sug,
-            },
-        }
+        result.overall = (
+            result.authority * _WEIGHTS["authority"]
+            + result.semantic * _WEIGHTS["semantic"]
+            + result.structure * _WEIGHTS["structure"]
+            + result.engagement * _WEIGHTS["engagement"]
+            + result.uniqueness * _WEIGHTS["uniqueness"]
+        )
 
-        all_suggestions = auth_sug + sem_sug + struct_sug + eng_sug + uniq_sug
+        return result
 
-        return {
-            "authority_score": auth_score,
-            "semantic_richness_score": sem_score,
-            "structure_score": struct_score,
-            "engagement_potential_score": eng_score,
-            "uniqueness_score": uniq_score,
-            "overall_score": overall,
-            "breakdown": breakdown,
-            "recommendations": all_suggestions,
-        }
-
-    def score_batch(
-        self, pages: list[dict[str, Any]]
-    ) -> list[dict[str, Any]]:
-        """
-        Score a list of page objects and return a list of quality reports.
-
-        Each result dict is augmented with ``page_id`` if present in the
-        page object.
-        """
-        results: list[dict[str, Any]] = []
-        for page in pages:
-            result = self.score(page)
-            if "id" in page:
-                result["page_id"] = page["id"]
-            results.append(result)
-        return results
+    # ------------------------------------------------------------------
+    # Dimension scorers
+    # ------------------------------------------------------------------
 
     @staticmethod
-    def quality_label(overall_score: int) -> str:
-        """Return a human-readable status label for an overall score."""
-        if overall_score >= 85:
-            return "Approve"
-        if overall_score >= 70:
-            return "Approve with notes"
-        if overall_score >= 55:
-            return "Needs Revision"
-        return "Reject"
+    def _score_authority(
+        content: str, page_data: dict[str, Any]
+    ) -> tuple[float, list[str]]:
+        """Score content authority signals (0–100)."""
+        notes: list[str] = []
+        score = 0.0
+
+        # Data citations (up to 30 pts)
+        citation_matches = len(_CITATION_PATTERNS.findall(content))
+        citation_score = min(30.0, citation_matches * 6.0)
+        score += citation_score
+        if citation_matches >= 3:
+            notes.append(f"Strong: {citation_matches} citation/data signals found.")
+        elif citation_matches > 0:
+            notes.append(f"Moderate: {citation_matches} citation signal(s). Add more statistics.")
+        else:
+            notes.append("Missing: No data citations or statistics found. Add concrete numbers.")
+
+        # Named authority sources (up to 20 pts)
+        named_sources = len(set(_NAMED_SOURCE_PATTERN.findall(content.lower())))
+        authority_score = min(20.0, named_sources * 10.0)
+        score += authority_score
+        if named_sources > 0:
+            notes.append(f"Good: {named_sources} named authority source(s) referenced.")
+        else:
+            notes.append("Consider citing recognised authority sources (Google, Gartner, etc.).")
+
+        # Competitor mentions (up to 20 pts)
+        competitor_hits = len(_COMPETITOR_MENTION_PATTERN.findall(content))
+        comp_score = min(20.0, competitor_hits * 5.0)
+        score += comp_score
+        if competitor_hits >= 2:
+            notes.append("Good: Competitor context or comparisons present.")
+        else:
+            notes.append("Consider adding unbiased competitor mentions for authority.")
+
+        # Case studies / results (up to 30 pts)
+        case_hits = len(_CASE_STUDY_PATTERN.findall(content))
+        case_score = min(30.0, case_hits * 5.0)
+        score += case_score
+        if case_hits >= 3:
+            notes.append("Strong: Client results and outcome language detected.")
+        elif case_hits > 0:
+            notes.append("Add more measurable client results to boost authority.")
+        else:
+            notes.append("Missing: No case study or results language found.")
+
+        return min(100.0, score), notes
 
     @staticmethod
-    def color_for_score(score: int) -> str:
-        """Return a colour name suitable for UI display (green/yellow/orange/red)."""
-        if score >= 85:
-            return "green"
-        if score >= 70:
-            return "yellow"
-        if score >= 55:
-            return "orange"
-        return "red"
+    def _score_semantic(
+        content: str, page_data: dict[str, Any]
+    ) -> tuple[float, list[str]]:
+        """Score semantic richness (0–100)."""
+        notes: list[str] = []
+        score = 0.0
+        words = content.split()
+        word_count = len(words)
+
+        if word_count == 0:
+            return 0.0, ["Content is empty."]
+
+        # Generic filler penalty (up to -20 pts base)
+        filler_count = len(_GENERIC_FILLER.findall(content))
+        filler_penalty = min(20.0, filler_count * 4.0)
+        base = 50.0 - filler_penalty
+        score = max(0.0, base)
+        if filler_count > 3:
+            notes.append(f"Warning: {filler_count} generic filler phrases detected. Rewrite them.")
+        elif filler_count > 0:
+            notes.append(f"{filler_count} filler phrase(s). Consider replacing with specific claims.")
+        else:
+            notes.append("Good: No generic filler phrases detected.")
+
+        # Technical term density (up to 20 pts)
+        tech_terms = len(set(_TECHNICAL_TERM_DENSITY_PATTERN.findall(content)))
+        tech_score = min(20.0, tech_terms * 2.0)
+        score += tech_score
+        if tech_terms >= 5:
+            notes.append(f"Good: {tech_terms} technical terms/acronyms detected.")
+        else:
+            notes.append("Add more domain-specific terminology and acronyms.")
+
+        # Vocabulary diversity (type-token ratio) — up to 20 pts
+        unique_words = len(set(w.lower() for w in words if len(w) > 3))
+        ttr = unique_words / word_count if word_count else 0
+        ttr_score = min(20.0, ttr * 40.0)
+        score += ttr_score
+
+        # Primary keyword present (10 pts)
+        primary_kw = page_data.get("primary_keyword", "")
+        if primary_kw and primary_kw.lower() in content.lower():
+            score += 10.0
+            notes.append("Primary keyword present in content.")
+        elif primary_kw:
+            notes.append(f"Primary keyword '{primary_kw}' not found in content.")
+
+        return min(100.0, score), notes
+
+    @staticmethod
+    def _score_structure(content: str) -> tuple[float, list[str]]:
+        """Score semantic HTML structure (0–100)."""
+        notes: list[str] = []
+        score = 0.0
+
+        # Detect whether content is HTML or Markdown
+        is_html = bool(re.search(r"<[a-zA-Z][^>]*>", content))
+
+        if is_html:
+            h1_count = len(_H1_PATTERN.findall(content))
+            h2_count = len(_H2_PATTERN.findall(content))
+            h3_count = len(_H3_PATTERN.findall(content))
+        else:
+            h1_count = len(_MD_H1.findall(content))
+            h2_count = len(_MD_H2.findall(content))
+            h3_count = len(_MD_H3.findall(content))
+
+        # H1 (20 pts)
+        if h1_count == 1:
+            score += 20.0
+            notes.append("Correct: Exactly one H1 found.")
+        elif h1_count > 1:
+            score += 10.0
+            notes.append(f"Warning: {h1_count} H1 tags found. Use exactly one H1 per page.")
+        else:
+            notes.append("Missing: No H1 found. Add a single H1 heading.")
+
+        # H2 sections (25 pts)
+        if h2_count >= 4:
+            score += 25.0
+            notes.append(f"Good: {h2_count} H2 sections found (target ≥4).")
+        elif h2_count >= 2:
+            score += 15.0
+            notes.append(f"Moderate: {h2_count} H2 sections. Add more to improve structure.")
+        elif h2_count == 1:
+            score += 5.0
+            notes.append("Only 1 H2 found. Expand the section structure.")
+        else:
+            notes.append("Missing: No H2 headings. Structure the content with subheadings.")
+
+        # H3 sub-sections (10 pts)
+        if h3_count >= 2:
+            score += 10.0
+            notes.append("Good: H3 sub-sections present.")
+        else:
+            notes.append("Consider adding H3 sub-sections for deeper structure.")
+
+        # Schema markup (20 pts)
+        if _SCHEMA_PATTERN.search(content):
+            score += 20.0
+            notes.append("Schema markup detected.")
+        else:
+            notes.append("Missing: No schema markup detected. Add JSON-LD or microdata.")
+
+        # CTA presence (15 pts)
+        cta_count = len(_CTA_PATTERN.findall(content))
+        if cta_count >= 2:
+            score += 15.0
+            notes.append(f"Good: {cta_count} CTA phrase(s) found.")
+        elif cta_count == 1:
+            score += 8.0
+            notes.append("One CTA found. Add 2–3 strategically placed CTAs.")
+        else:
+            notes.append("Missing: No clear CTAs detected.")
+
+        # Trust section (10 pts)
+        trust_hits = len(_TRUST_SECTION_PATTERN.findall(content))
+        if trust_hits >= 3:
+            score += 10.0
+            notes.append("Trust signals present (testimonials, awards, etc.).")
+        else:
+            notes.append("Add trust/credibility signals: testimonials, awards, certifications.")
+
+        return min(100.0, score), notes
+
+    @staticmethod
+    def _score_engagement(content: str) -> tuple[float, list[str]]:
+        """Score engagement potential (0–100)."""
+        notes: list[str] = []
+        score = 0.0
+
+        # Power words (up to 30 pts)
+        power_count = len(_POWER_WORDS.findall(content))
+        power_score = min(30.0, power_count * 2.0)
+        score += power_score
+        if power_count >= 10:
+            notes.append("Strong: Plenty of power/persuasion words detected.")
+        elif power_count >= 5:
+            notes.append("Moderate: Some power words found. Add more benefit-driven language.")
+        else:
+            notes.append("Few power words found. Use more action-oriented, benefit-focused language.")
+
+        # Benefit-driven language (up to 30 pts)
+        benefit_count = len(_BENEFIT_LANGUAGE.findall(content))
+        benefit_score = min(30.0, benefit_count * 3.0)
+        score += benefit_score
+        if benefit_count >= 5:
+            notes.append("Good: Benefit and outcome language detected.")
+        else:
+            notes.append("Add more outcome-focused language (results, growth, ROI).")
+
+        # Lists (up to 20 pts) — scannable content
+        list_count = len(_LIST_PATTERN.findall(content))
+        list_score = min(20.0, list_count * 2.0)
+        score += list_score
+        if list_count >= 5:
+            notes.append("Good: Lists improve scannability.")
+        else:
+            notes.append("Add bullet or numbered lists to improve scannability.")
+
+        # Rhetorical questions (up to 20 pts) — keep readers engaged
+        question_count = len(_QUESTION_PATTERN.findall(content))
+        q_score = min(20.0, question_count * 4.0)
+        score += q_score
+        if question_count >= 3:
+            notes.append("Good: Questions create engagement and curiosity.")
+        else:
+            notes.append("Use questions to keep readers engaged and curious.")
+
+        return min(100.0, score), notes
+
+    @staticmethod
+    def _score_uniqueness(content: str) -> tuple[float, list[str]]:
+        """Score content uniqueness vs. generic/placeholder content (0–100)."""
+        notes: list[str] = []
+        score = 100.0  # Start at 100 and deduct
+
+        # Placeholder phrases
+        placeholder_count = len(_PLACEHOLDER_PHRASES.findall(content))
+        placeholder_penalty = min(60.0, placeholder_count * 20.0)
+        score -= placeholder_penalty
+        if placeholder_count > 0:
+            notes.append(
+                f"Critical: {placeholder_count} placeholder/generic phrase(s) detected. "
+                "Replace with specific, original content immediately."
+            )
+        else:
+            notes.append("No placeholder phrases detected.")
+
+        # Generic sentence openers
+        opener_count = len(_BANNED_OPENERS.findall(content))
+        opener_penalty = min(30.0, opener_count * 3.0)
+        score -= opener_penalty
+        if opener_count >= 5:
+            notes.append(
+                f"{opener_count} generic sentence openers detected. "
+                "Vary sentence structure for uniqueness."
+            )
+        elif opener_count > 0:
+            notes.append(f"{opener_count} weak sentence starter(s). Diversify.")
+        else:
+            notes.append("Sentence starters are varied — good for uniqueness.")
+
+        # Very short content is likely generic
+        word_count = len(content.split())
+        if word_count < 300:
+            score = min(score, 30.0)
+            notes.append("Content is very short (<300 words). Expand for uniqueness and depth.")
+        elif word_count < 800:
+            score = min(score, 60.0)
+            notes.append("Content length is below recommended (800+ words for uniqueness signal).")
+
+        return max(0.0, score), notes
