@@ -68,6 +68,9 @@ CREATE TABLE IF NOT EXISTS content_versions (
     word_count      INTEGER NOT NULL DEFAULT 0,
     quality_report  TEXT    NOT NULL DEFAULT '{}',
     created_at      TEXT    NOT NULL,
+    version_notes   TEXT    NOT NULL DEFAULT '',
+    edited_by       TEXT    NOT NULL DEFAULT '',
+    edited_at       TEXT    NOT NULL DEFAULT '',
     UNIQUE(page_id, version)
 );
 
@@ -252,6 +255,79 @@ CREATE INDEX IF NOT EXISTS idx_staging_reviews_batch ON staging_reviews(batch_id
 CREATE INDEX IF NOT EXISTS idx_deployments_batch     ON deployments(batch_id);
 """
 
+# ---------------------------------------------------------------------------
+# Platform extensions schema (Content Editor, WordPress Publisher, Ranking Tracker)
+# ---------------------------------------------------------------------------
+
+_PLATFORM_SCHEMA_SQL = """
+PRAGMA foreign_keys=ON;
+
+CREATE TABLE IF NOT EXISTS wordpress_connections (
+    id                      INTEGER PRIMARY KEY AUTOINCREMENT,
+    client_id               INTEGER REFERENCES clients(id) ON DELETE SET NULL,
+    site_url                TEXT    NOT NULL,
+    site_name               TEXT    NOT NULL DEFAULT '',
+    api_username            TEXT    NOT NULL DEFAULT '',
+    api_password_encrypted  TEXT    NOT NULL DEFAULT '',
+    created_at              TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+);
+
+CREATE TABLE IF NOT EXISTS wordpress_posts (
+    id                          INTEGER PRIMARY KEY AUTOINCREMENT,
+    page_id                     INTEGER REFERENCES pages(id) ON DELETE SET NULL,
+    client_id                   INTEGER REFERENCES clients(id) ON DELETE SET NULL,
+    wordpress_connection_id     INTEGER REFERENCES wordpress_connections(id) ON DELETE CASCADE,
+    post_id                     TEXT    NOT NULL DEFAULT '',
+    post_url                    TEXT    NOT NULL DEFAULT '',
+    publish_date                TEXT,
+    status                      TEXT    NOT NULL DEFAULT 'draft'
+                                        CHECK(status IN ('draft','published','scheduled','failed')),
+    error_message               TEXT    NOT NULL DEFAULT '',
+    created_at                  TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+);
+
+CREATE TABLE IF NOT EXISTS gsc_connections (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    client_id       INTEGER REFERENCES clients(id) ON DELETE SET NULL,
+    property_url    TEXT    NOT NULL,
+    gsc_property_id TEXT    NOT NULL DEFAULT '',
+    access_token    TEXT    NOT NULL DEFAULT '',
+    refresh_token   TEXT    NOT NULL DEFAULT '',
+    created_at      TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+);
+
+CREATE TABLE IF NOT EXISTS semrush_connections (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    client_id           INTEGER REFERENCES clients(id) ON DELETE SET NULL,
+    api_key_encrypted   TEXT    NOT NULL DEFAULT '',
+    domain              TEXT    NOT NULL DEFAULT '',
+    semrush_domain_id   TEXT    NOT NULL DEFAULT '',
+    created_at          TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+);
+
+CREATE TABLE IF NOT EXISTS ranking_history (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    page_id         INTEGER REFERENCES pages(id) ON DELETE SET NULL,
+    keyword         TEXT    NOT NULL DEFAULT '',
+    position        REAL    NOT NULL DEFAULT 0,
+    impressions     INTEGER NOT NULL DEFAULT 0,
+    clicks          INTEGER NOT NULL DEFAULT 0,
+    ctr             REAL    NOT NULL DEFAULT 0,
+    recorded_date   TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+    source          TEXT    NOT NULL DEFAULT 'gsc'
+                            CHECK(source IN ('gsc','semrush','manual'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_wp_connections_client   ON wordpress_connections(client_id);
+CREATE INDEX IF NOT EXISTS idx_wp_posts_page           ON wordpress_posts(page_id);
+CREATE INDEX IF NOT EXISTS idx_wp_posts_connection     ON wordpress_posts(wordpress_connection_id);
+CREATE INDEX IF NOT EXISTS idx_gsc_connections_client  ON gsc_connections(client_id);
+CREATE INDEX IF NOT EXISTS idx_semrush_connections_cl  ON semrush_connections(client_id);
+CREATE INDEX IF NOT EXISTS idx_ranking_history_page    ON ranking_history(page_id);
+CREATE INDEX IF NOT EXISTS idx_ranking_history_keyword ON ranking_history(keyword);
+CREATE INDEX IF NOT EXISTS idx_ranking_history_date    ON ranking_history(recorded_date);
+"""
+
 # Five standard templates seeded on first init.
 _TEMPLATE_SEEDS = [
     ("modern_saas",         "Modern SaaS"),
@@ -327,6 +403,21 @@ class Database:
             conn.executescript(_STAGING_SCHEMA_SQL)
         with self._connect() as conn:
             conn.executescript(_AGENCY_SCHEMA_SQL)
+        with self._connect() as conn:
+            conn.executescript(_PLATFORM_SCHEMA_SQL)
+        # Migrate content_versions for existing databases that predate the
+        # version_notes / edited_by / edited_at columns.
+        _cv_migrations = [
+            "ALTER TABLE content_versions ADD COLUMN version_notes TEXT NOT NULL DEFAULT ''",
+            "ALTER TABLE content_versions ADD COLUMN edited_by TEXT NOT NULL DEFAULT ''",
+            "ALTER TABLE content_versions ADD COLUMN edited_at TEXT NOT NULL DEFAULT ''",
+        ]
+        with self._connect() as conn:
+            for stmt in _cv_migrations:
+                try:
+                    conn.execute(stmt)
+                except Exception:
+                    pass  # Column already exists
         # Seed the five standard templates (idempotent).
         with self._connect() as conn:
             for name, display_name in _TEMPLATE_SEEDS:
@@ -932,6 +1023,9 @@ class Database:
         content_html: str = "",
         content_markdown: str = "",
         quality_report: dict[str, Any] | None = None,
+        version_notes: str = "",
+        edited_by: str = "",
+        edited_at: str = "",
     ) -> int:
         """
         Append a new content version for *page_id* and return its id.
@@ -949,6 +1043,12 @@ class Database:
         quality_report:
             JSON-serialisable quality report dict from the generation
             pipeline.
+        version_notes:
+            Human-readable notes describing what changed in this version.
+        edited_by:
+            Name or identifier of the editor who created this version.
+        edited_at:
+            ISO-8601 timestamp of when the edit was made (defaults to now).
 
         Returns
         -------
@@ -967,8 +1067,9 @@ class Database:
             cur = conn.execute(
                 """INSERT INTO content_versions
                    (page_id, version, content_html, content_markdown,
-                    word_count, quality_report, created_at)
-                   VALUES (?,?,?,?,?,?,?)""",
+                    word_count, quality_report, created_at,
+                    version_notes, edited_by, edited_at)
+                   VALUES (?,?,?,?,?,?,?,?,?,?)""",
                 (
                     page_id,
                     next_version,
@@ -977,6 +1078,9 @@ class Database:
                     word_count,
                     json.dumps(quality_report or {}),
                     _now(),
+                    version_notes,
+                    edited_by,
+                    edited_at or _now(),
                 ),
             )
             return cur.lastrowid  # type: ignore[return-value]
@@ -1349,3 +1453,367 @@ class Database:
             "deployed_batches": row["deployed_batches"] or 0,
             "total_batches": row["total_batches"] or 0,
         }
+
+    # ------------------------------------------------------------------
+    # WordPress Publisher: connections
+    # ------------------------------------------------------------------
+
+    def create_wordpress_connection(
+        self,
+        site_url: str,
+        site_name: str = "",
+        api_username: str = "",
+        api_password_encrypted: str = "",
+        client_id: int | None = None,
+    ) -> int:
+        """Insert a WordPress connection and return its id."""
+        with self._connect() as conn:
+            cur = conn.execute(
+                "INSERT INTO wordpress_connections "
+                "(client_id, site_url, site_name, api_username, api_password_encrypted) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (client_id, site_url, site_name, api_username, api_password_encrypted),
+            )
+            return cur.lastrowid  # type: ignore[return-value]
+
+    def get_wordpress_connection(self, connection_id: int) -> dict[str, Any] | None:
+        """Return a wordpress_connections row by id, or ``None``."""
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM wordpress_connections WHERE id = ?", (connection_id,)
+            ).fetchone()
+            return dict(row) if row else None
+
+    def list_wordpress_connections(
+        self, client_id: int | None = None
+    ) -> list[dict[str, Any]]:
+        """Return all WordPress connections, optionally filtered by client."""
+        with self._connect() as conn:
+            if client_id is not None:
+                rows = conn.execute(
+                    "SELECT * FROM wordpress_connections WHERE client_id = ? ORDER BY id DESC",
+                    (client_id,),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT * FROM wordpress_connections ORDER BY id DESC"
+                ).fetchall()
+            return [dict(r) for r in rows]
+
+    def delete_wordpress_connection(self, connection_id: int) -> None:
+        """Delete a WordPress connection and its associated posts."""
+        with self._connect() as conn:
+            conn.execute(
+                "DELETE FROM wordpress_connections WHERE id = ?", (connection_id,)
+            )
+
+    # ------------------------------------------------------------------
+    # WordPress Publisher: posts
+    # ------------------------------------------------------------------
+
+    def create_wordpress_post(
+        self,
+        wordpress_connection_id: int,
+        page_id: int | None = None,
+        client_id: int | None = None,
+        post_id: str = "",
+        post_url: str = "",
+        publish_date: str | None = None,
+        status: str = "draft",
+        error_message: str = "",
+    ) -> int:
+        """Record a WordPress publish attempt and return its id."""
+        with self._connect() as conn:
+            cur = conn.execute(
+                "INSERT INTO wordpress_posts "
+                "(page_id, client_id, wordpress_connection_id, post_id, post_url, "
+                " publish_date, status, error_message) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    page_id,
+                    client_id,
+                    wordpress_connection_id,
+                    post_id,
+                    post_url,
+                    publish_date,
+                    status,
+                    error_message,
+                ),
+            )
+            return cur.lastrowid  # type: ignore[return-value]
+
+    def get_wordpress_post(self, wp_post_id: int) -> dict[str, Any] | None:
+        """Return a wordpress_posts row by its database id, or ``None``."""
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM wordpress_posts WHERE id = ?", (wp_post_id,)
+            ).fetchone()
+            return dict(row) if row else None
+
+    def list_wordpress_posts(
+        self,
+        page_id: int | None = None,
+        client_id: int | None = None,
+        connection_id: int | None = None,
+    ) -> list[dict[str, Any]]:
+        """Return WordPress post records with optional filters."""
+        clauses: list[str] = []
+        params: list[Any] = []
+        if page_id is not None:
+            clauses.append("page_id = ?")
+            params.append(page_id)
+        if client_id is not None:
+            clauses.append("client_id = ?")
+            params.append(client_id)
+        if connection_id is not None:
+            clauses.append("wordpress_connection_id = ?")
+            params.append(connection_id)
+        where = "WHERE " + " AND ".join(clauses) if clauses else ""
+        with self._connect() as conn:
+            rows = conn.execute(
+                f"SELECT * FROM wordpress_posts {where} ORDER BY created_at DESC",  # noqa: S608
+                params,
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    def update_wordpress_post_status(
+        self,
+        wp_post_id: int,
+        status: str,
+        post_id: str = "",
+        post_url: str = "",
+        error_message: str = "",
+    ) -> None:
+        """Update the status and metadata of a WordPress post record."""
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE wordpress_posts "
+                "SET status = ?, post_id = ?, post_url = ?, error_message = ? "
+                "WHERE id = ?",
+                (status, post_id, post_url, error_message, wp_post_id),
+            )
+
+    # ------------------------------------------------------------------
+    # Ranking Tracker: GSC connections
+    # ------------------------------------------------------------------
+
+    def create_gsc_connection(
+        self,
+        property_url: str,
+        client_id: int | None = None,
+        gsc_property_id: str = "",
+        access_token: str = "",
+        refresh_token: str = "",
+    ) -> int:
+        """Insert a GSC connection record and return its id."""
+        with self._connect() as conn:
+            cur = conn.execute(
+                "INSERT INTO gsc_connections "
+                "(client_id, property_url, gsc_property_id, access_token, refresh_token) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (client_id, property_url, gsc_property_id, access_token, refresh_token),
+            )
+            return cur.lastrowid  # type: ignore[return-value]
+
+    def get_gsc_connection(self, connection_id: int) -> dict[str, Any] | None:
+        """Return a gsc_connections row by id, or ``None``."""
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM gsc_connections WHERE id = ?", (connection_id,)
+            ).fetchone()
+            return dict(row) if row else None
+
+    def list_gsc_connections(
+        self, client_id: int | None = None
+    ) -> list[dict[str, Any]]:
+        """Return all GSC connections, optionally filtered by client."""
+        with self._connect() as conn:
+            if client_id is not None:
+                rows = conn.execute(
+                    "SELECT * FROM gsc_connections WHERE client_id = ? ORDER BY id DESC",
+                    (client_id,),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT * FROM gsc_connections ORDER BY id DESC"
+                ).fetchall()
+            return [dict(r) for r in rows]
+
+    def delete_gsc_connection(self, connection_id: int) -> None:
+        """Delete a GSC connection."""
+        with self._connect() as conn:
+            conn.execute("DELETE FROM gsc_connections WHERE id = ?", (connection_id,))
+
+    # ------------------------------------------------------------------
+    # Ranking Tracker: SEMrush connections
+    # ------------------------------------------------------------------
+
+    def create_semrush_connection(
+        self,
+        domain: str,
+        client_id: int | None = None,
+        api_key_encrypted: str = "",
+        semrush_domain_id: str = "",
+    ) -> int:
+        """Insert a SEMrush connection record and return its id."""
+        with self._connect() as conn:
+            cur = conn.execute(
+                "INSERT INTO semrush_connections "
+                "(client_id, api_key_encrypted, domain, semrush_domain_id) "
+                "VALUES (?, ?, ?, ?)",
+                (client_id, api_key_encrypted, domain, semrush_domain_id),
+            )
+            return cur.lastrowid  # type: ignore[return-value]
+
+    def get_semrush_connection(self, connection_id: int) -> dict[str, Any] | None:
+        """Return a semrush_connections row by id, or ``None``."""
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM semrush_connections WHERE id = ?", (connection_id,)
+            ).fetchone()
+            return dict(row) if row else None
+
+    def list_semrush_connections(
+        self, client_id: int | None = None
+    ) -> list[dict[str, Any]]:
+        """Return all SEMrush connections, optionally filtered by client."""
+        with self._connect() as conn:
+            if client_id is not None:
+                rows = conn.execute(
+                    "SELECT * FROM semrush_connections WHERE client_id = ? ORDER BY id DESC",
+                    (client_id,),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT * FROM semrush_connections ORDER BY id DESC"
+                ).fetchall()
+            return [dict(r) for r in rows]
+
+    def delete_semrush_connection(self, connection_id: int) -> None:
+        """Delete a SEMrush connection."""
+        with self._connect() as conn:
+            conn.execute(
+                "DELETE FROM semrush_connections WHERE id = ?", (connection_id,)
+            )
+
+    # ------------------------------------------------------------------
+    # Ranking Tracker: ranking history
+    # ------------------------------------------------------------------
+
+    def add_ranking_entry(
+        self,
+        keyword: str,
+        position: float,
+        page_id: int | None = None,
+        impressions: int = 0,
+        clicks: int = 0,
+        ctr: float = 0.0,
+        recorded_date: str = "",
+        source: str = "gsc",
+    ) -> int:
+        """Insert a ranking history row and return its id."""
+        with self._connect() as conn:
+            cur = conn.execute(
+                "INSERT INTO ranking_history "
+                "(page_id, keyword, position, impressions, clicks, ctr, "
+                " recorded_date, source) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    page_id,
+                    keyword,
+                    position,
+                    impressions,
+                    clicks,
+                    ctr,
+                    recorded_date or _now(),
+                    source,
+                ),
+            )
+            return cur.lastrowid  # type: ignore[return-value]
+
+    def get_ranking_history(
+        self,
+        page_id: int | None = None,
+        keyword: str | None = None,
+        source: str | None = None,
+        days: int | None = None,
+    ) -> list[dict[str, Any]]:
+        """
+        Return ranking history rows with optional filters.
+
+        Parameters
+        ----------
+        page_id:
+            Filter to a specific page.
+        keyword:
+            Filter to a specific keyword (exact match).
+        source:
+            Filter by source (``'gsc'``, ``'semrush'``, or ``'manual'``).
+        days:
+            Return only entries from the last *days* days.
+        """
+        clauses: list[str] = []
+        params: list[Any] = []
+        if page_id is not None:
+            clauses.append("page_id = ?")
+            params.append(page_id)
+        if keyword is not None:
+            clauses.append("keyword = ?")
+            params.append(keyword)
+        if source is not None:
+            clauses.append("source = ?")
+            params.append(source)
+        if days is not None:
+            clauses.append(
+                "recorded_date >= datetime('now', ? || ' days')"
+            )
+            params.append(f"-{days}")
+        where = "WHERE " + " AND ".join(clauses) if clauses else ""
+        with self._connect() as conn:
+            rows = conn.execute(
+                f"SELECT * FROM ranking_history {where} ORDER BY recorded_date DESC",  # noqa: S608
+                params,
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    def get_ranking_summary(self, page_id: int) -> dict[str, Any]:
+        """
+        Return a summary of the latest ranking position for each keyword on
+        a page.
+
+        Returns
+        -------
+        dict
+            Keys: ``keywords`` (list of dicts with latest position data),
+            ``best_position``, ``total_impressions``, ``total_clicks``.
+        """
+        with self._connect() as conn:
+            rows = conn.execute(
+                """SELECT keyword,
+                          position,
+                          impressions,
+                          clicks,
+                          ctr,
+                          recorded_date,
+                          source
+                   FROM ranking_history
+                   WHERE page_id = ?
+                     AND recorded_date = (
+                         SELECT MAX(recorded_date)
+                         FROM ranking_history rh2
+                         WHERE rh2.page_id = ranking_history.page_id
+                           AND rh2.keyword = ranking_history.keyword
+                     )
+                   ORDER BY position ASC""",
+                (page_id,),
+            ).fetchall()
+            keywords = [dict(r) for r in rows]
+            best_position = min((k["position"] for k in keywords), default=0)
+            total_impressions = sum(k["impressions"] for k in keywords)
+            total_clicks = sum(k["clicks"] for k in keywords)
+            return {
+                "keywords": keywords,
+                "best_position": best_position,
+                "total_impressions": total_impressions,
+                "total_clicks": total_clicks,
+            }

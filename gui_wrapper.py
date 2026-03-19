@@ -22,6 +22,9 @@ from src.agency_dashboard import AgencyDashboard
 from src.batch_validator import BatchValidator
 from src.staging_environment import StagingEnvironment
 from src.staging_review import StagingReviewManager
+from src.content_editor import ContentEditor
+from src.wordpress_publisher import WordPressPublisher
+from src.ranking_tracker import RankingTracker
 
 
 def _json_default(obj: object) -> str:
@@ -47,7 +50,7 @@ if "db" not in st.session_state:
 
 db: Database = st.session_state.db
 
-tab_prompt, tab_hub, tab_competitor, tab_multiformat, tab_template, tab_library, tab_staging, tab_validator, tab_agency = st.tabs([
+tab_prompt, tab_hub, tab_competitor, tab_multiformat, tab_template, tab_library, tab_staging, tab_validator, tab_agency, tab_editor, tab_wp, tab_ranking = st.tabs([
     "📝 Prompt Generator",
     "🕸️ Hub & Spoke",
     "🔍 Competitor Analysis",
@@ -57,6 +60,9 @@ tab_prompt, tab_hub, tab_competitor, tab_multiformat, tab_template, tab_library,
     "🎭 Staging Review",
     "✅ Batch Validator",
     "💼 Agency Dashboard",
+    "✏️ Content Editor",
+    "🚀 WordPress Publisher",
+    "📊 Ranking Tracker",
 ])
 
 # ---------------------------------------------------------------------------
@@ -1015,3 +1021,511 @@ with tab_agency:
                 f"${client.get('contract_value', 0):,.0f} | "
                 f"{client.get('email', '—')} | {client.get('status', 'active')}"
             )
+
+# ===========================================================================
+# Tab: Content Editor
+# ===========================================================================
+
+with tab_editor:
+    st.header("✏️ Content Editor")
+    st.caption("Edit and refine page content with real-time quality scoring, SEO preview, and version history.")
+
+    editor = ContentEditor(db)
+
+    # -- Page selector --------------------------------------------------------
+    pages = db.list_pages()
+    if not pages:
+        st.info("No pages in the library yet. Create some in the Landing Page Templates tab.")
+    else:
+        page_options = {f"[{p['id']}] {p['topic']} ({p.get('primary_keyword','')})": p["id"] for p in pages}
+        selected_page_label = st.selectbox("Select a page to edit:", list(page_options.keys()), key="editor_page_select")
+        selected_page_id = page_options[selected_page_label]
+        selected_page = db.get_page(selected_page_id)
+
+        st.divider()
+
+        # Split pane: editor left, quality score right
+        col_editor, col_quality = st.columns([2, 1])
+
+        with col_editor:
+            st.subheader("📝 Edit Content")
+
+            latest = editor.get_latest_version(selected_page_id)
+            existing_content = latest["content_markdown"] if latest else ""
+
+            new_title = st.text_input(
+                "Page Title",
+                value=selected_page.get("topic", "") if selected_page else "",
+                key="editor_title",
+            )
+            new_h1 = st.text_input(
+                "H1 Heading",
+                value=selected_page.get("topic", "") if selected_page else "",
+                key="editor_h1",
+            )
+            new_meta = st.text_area(
+                "Meta Description",
+                value="",
+                height=80,
+                key="editor_meta",
+                placeholder="150-160 characters for best results",
+            )
+            new_content = st.text_area(
+                "Content (Markdown)",
+                value=existing_content,
+                height=400,
+                key="editor_content",
+            )
+            version_notes = st.text_input(
+                "Version Notes (what changed?)",
+                placeholder="e.g. Fixed typos, added statistics",
+                key="editor_version_notes",
+            )
+            edited_by = st.text_input("Your name / initials", key="editor_edited_by")
+
+            save_col, kw_col = st.columns(2)
+            with save_col:
+                if st.button("💾 Save Version", key="btn_save_version"):
+                    if not new_content.strip():
+                        st.error("Content cannot be empty.")
+                    else:
+                        result = editor.save_edit(
+                            selected_page_id,
+                            content_markdown=new_content,
+                            version_notes=version_notes,
+                            edited_by=edited_by,
+                        )
+                        st.success(result["message"])
+                        st.metric("Word Count", result["word_count"])
+
+            with kw_col:
+                if new_content.strip():
+                    primary_kw = selected_page.get("primary_keyword", "") if selected_page else ""
+                    if primary_kw:
+                        density = editor.keyword_density(new_content, primary_kw)
+                        color = "green" if 1.0 <= density <= 2.5 else "orange"
+                        st.markdown(
+                            f"**Keyword density** for *{primary_kw}*: "
+                            f"<span style='color:{color};font-weight:bold'>{density:.2f}%</span> "
+                            f"(target: 1.0–2.5%)",
+                            unsafe_allow_html=True,
+                        )
+
+        with col_quality:
+            st.subheader("📊 Quality Score")
+            if new_content.strip():
+                live_scores = editor.score_content(
+                    new_content,
+                    {"primary_keyword": selected_page.get("primary_keyword", "")} if selected_page else {},
+                )
+                overall = live_scores.get("overall", 0)
+                score_color = "🟢" if overall >= 75 else "🟡" if overall >= 50 else "🔴"
+                st.metric("Overall", f"{score_color} {overall:.1f} / 100")
+                for dim in ("authority", "semantic", "structure", "engagement", "uniqueness"):
+                    st.metric(dim.capitalize(), f"{live_scores.get(dim, 0):.1f}")
+            else:
+                st.info("Start typing to see live quality scores.")
+
+            st.divider()
+            st.subheader("🔍 SEO Preview")
+            if new_title or new_meta:
+                preview = editor.build_seo_preview(new_title, new_meta)
+                st.markdown(
+                    f"""
+                    <div style="border:1px solid #ddd;padding:12px;border-radius:6px;background:#fff">
+                      <p style="color:#1a0dab;font-size:18px;margin:0">{preview['display_title']}</p>
+                      <p style="color:#006621;font-size:13px;margin:2px 0">{preview['display_url']}</p>
+                      <p style="color:#545454;font-size:14px;margin:4px 0">{preview['display_description']}</p>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+                t_ok = "✅" if preview["title_ok"] else "⚠️"
+                d_ok = "✅" if preview["desc_ok"] else "⚠️"
+                st.caption(
+                    f"{t_ok} Title: {preview['title_length']} chars  "
+                    f"{d_ok} Meta: {preview['desc_length']} chars"
+                )
+
+        st.divider()
+
+        # Version history
+        st.subheader("🕐 Version History")
+        versions = editor.list_versions(selected_page_id)
+        if not versions:
+            st.info("No saved versions yet.")
+        else:
+            for v in reversed(versions):
+                with st.expander(
+                    f"v{v['version']} — {v['word_count']} words — "
+                    f"{v.get('edited_by') or 'unknown'} — {v.get('edited_at', v['created_at'])[:10]}"
+                ):
+                    st.markdown(f"**Notes:** {v.get('version_notes') or '—'}")
+                    st.text_area("Content", value=v["content_markdown"], height=200, disabled=True,
+                                 key=f"ver_content_{v['id']}")
+
+            # Side-by-side comparison
+            if len(versions) >= 2:
+                st.subheader("🔄 Compare Versions")
+                v_nums = [v["version"] for v in versions]
+                c1, c2 = st.columns(2)
+                va = c1.selectbox("Version A", v_nums, index=0, key="compare_va")
+                vb = c2.selectbox("Version B", v_nums, index=len(v_nums) - 1, key="compare_vb")
+                if st.button("Compare", key="btn_compare"):
+                    if va == vb:
+                        st.warning("Select two different versions to compare.")
+                    else:
+                        comp = editor.compare_versions(selected_page_id, va, vb)
+                        st.metric("Word count delta", comp["word_count_delta"],
+                                  delta=comp["word_count_delta"])
+                        if comp["diff"]:
+                            st.code(comp["diff"], language="diff")
+                        else:
+                            st.info("No textual differences found.")
+
+
+# ===========================================================================
+# Tab: WordPress Publisher
+# ===========================================================================
+
+with tab_wp:
+    st.header("🚀 WordPress Publisher")
+    st.caption("Connect WordPress sites and publish pages with one click.")
+
+    wp_publisher = WordPressPublisher(db)
+
+    # -- Connection management ------------------------------------------------
+    st.subheader("🔌 WordPress Connections")
+
+    with st.expander("➕ Add New WordPress Site", expanded=False):
+        wp_url = st.text_input("Site URL (e.g. https://yoursite.com)", key="wp_site_url")
+        wp_name = st.text_input("Site Name (label)", key="wp_site_name")
+        wp_user = st.text_input("API Username", key="wp_api_user")
+        wp_pass = st.text_input("Application Password", type="password", key="wp_api_pass")
+
+        clients_for_wp = db.list_clients()
+        wp_client_options = {"— None —": None}
+        wp_client_options.update({c["name"]: c["id"] for c in clients_for_wp})
+        wp_client_sel = st.selectbox("Associate with client (optional)", list(wp_client_options.keys()), key="wp_client_sel")
+        wp_client_id = wp_client_options[wp_client_sel]
+
+        if st.button("Save Connection", key="btn_save_wp_conn"):
+            if not wp_url or not wp_user or not wp_pass:
+                st.error("Site URL, username, and password are required.")
+            else:
+                conn_id = wp_publisher.add_connection(
+                    site_url=wp_url,
+                    api_username=wp_user,
+                    api_password=wp_pass,
+                    site_name=wp_name or wp_url,
+                    client_id=wp_client_id,
+                )
+                st.success(f"Connection saved (id={conn_id}). Credentials stored securely.")
+
+    connections = wp_publisher.list_connections()
+    if not connections:
+        st.info("No WordPress connections yet. Add one above.")
+    else:
+        st.write(f"**{len(connections)} connection(s) configured:**")
+        for conn in connections:
+            col_a, col_b, col_c = st.columns([3, 2, 1])
+            col_a.markdown(f"🌐 **{conn.get('site_name') or conn['site_url']}** — `{conn['site_url']}`")
+            col_b.caption(f"User: {conn.get('api_username', '—')}  |  id: {conn['id']}")
+            if col_c.button("🗑️", key=f"del_wp_{conn['id']}", help="Delete connection"):
+                wp_publisher.remove_connection(conn["id"])
+                st.rerun()
+
+    st.divider()
+
+    # -- Publish pages --------------------------------------------------------
+    st.subheader("📤 Publish Pages")
+
+    pages_for_pub = db.list_pages()
+    wp_connections_for_pub = wp_publisher.list_connections()
+
+    if not pages_for_pub:
+        st.info("No pages in the library yet.")
+    elif not wp_connections_for_pub:
+        st.warning("Add a WordPress connection above before publishing.")
+    else:
+        conn_options = {f"{c.get('site_name') or c['site_url']} (id={c['id']})": c["id"] for c in wp_connections_for_pub}
+        selected_conn_label = st.selectbox("Target WordPress site:", list(conn_options.keys()), key="pub_conn_sel")
+        selected_conn_id = conn_options[selected_conn_label]
+
+        page_options_pub = {f"[{p['id']}] {p['topic']}": p["id"] for p in pages_for_pub}
+        selected_pages_labels = st.multiselect("Select pages to publish:", list(page_options_pub.keys()), key="pub_pages_sel")
+
+        pub_status = st.radio("Publish status:", ["draft", "publish"], horizontal=True, key="pub_status_radio")
+        schedule_dt = st.text_input("Schedule date (ISO 8601, optional):", placeholder="2025-12-01T09:00:00", key="pub_schedule")
+
+        if st.button("🚀 Publish Selected Pages", key="btn_publish_pages"):
+            if not selected_pages_labels:
+                st.error("Select at least one page to publish.")
+            else:
+                pages_payload = []
+                for label in selected_pages_labels:
+                    pid = page_options_pub[label]
+                    page = db.get_page(pid)
+                    latest_ver = db.get_latest_version(pid)
+                    pages_payload.append({
+                        "page_id": pid,
+                        "title": page.get("topic", f"Page {pid}") if page else f"Page {pid}",
+                        "content": latest_ver["content_markdown"] if latest_ver else "",
+                        "status": pub_status,
+                        "schedule_date": schedule_dt or None,
+                    })
+
+                results = wp_publisher.batch_publish(pages_payload, selected_conn_id)
+                for r in results:
+                    pid = r.get("page_id")
+                    if r["success"]:
+                        st.success(f"✅ Page {pid}: Published — {r.get('post_url', '')}")
+                    else:
+                        st.error(f"❌ Page {pid}: {r.get('message', 'Unknown error')}")
+
+    st.divider()
+
+    # -- Publishing history ---------------------------------------------------
+    st.subheader("📋 Publishing History")
+    all_wp_posts = db.list_wordpress_posts()
+    if not all_wp_posts:
+        st.info("No publishing records yet.")
+    else:
+        for rec in all_wp_posts[:20]:
+            status_icon = "✅" if rec["status"] in ("published", "publish") else "📝" if rec["status"] == "draft" else "⏰" if rec["status"] == "scheduled" else "❌"
+            col1, col2, col3 = st.columns([1, 3, 2])
+            col1.write(f"{status_icon} {rec['status']}")
+            col2.write(f"Page {rec.get('page_id', '—')} → {rec.get('post_url') or '—'}")
+            col3.caption(rec.get("created_at", "")[:10])
+
+
+# ===========================================================================
+# Tab: Ranking Tracker
+# ===========================================================================
+
+with tab_ranking:
+    st.header("📊 Ranking Tracker")
+    st.caption("Track keyword rankings from Google Search Console, SEMrush, or manual entry.")
+
+    tracker = RankingTracker(db)
+
+    inner_tabs = st.tabs(["📈 Dashboard", "🔗 Connections", "➕ Add Data", "📄 Monthly Report"])
+
+    # -- Dashboard tab --------------------------------------------------------
+    with inner_tabs[0]:
+        st.subheader("Rankings Dashboard")
+
+        pages_for_rank = db.list_pages()
+        rank_page_options = {"All Pages": None}
+        rank_page_options.update({f"[{p['id']}] {p['topic']}": p["id"] for p in pages_for_rank})
+        rank_page_sel = st.selectbox("Filter by page:", list(rank_page_options.keys()), key="rank_page_sel")
+        rank_page_id = rank_page_options[rank_page_sel]
+
+        days_window = st.select_slider("Rolling window (days):", [7, 14, 30, 60, 90, 180], value=30, key="rank_days")
+
+        dashboard = tracker.get_ranking_dashboard(page_id=rank_page_id, days=days_window)
+
+        # Summary metrics
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric("Top 3 Keywords", len(dashboard["top3"]))
+        m2.metric("Top 10 Keywords", len(dashboard["top10"]) + len(dashboard["top3"]))
+        m3.metric("Est. Traffic", f"{dashboard['traffic_estimate']:,.0f}")
+        m4.metric("Avg CTR", f"{dashboard['avg_ctr']*100:.1f}%")
+
+        col_left, col_right = st.columns(2)
+        with col_left:
+            if dashboard["quick_wins"]:
+                st.subheader("⚡ Quick Wins (positions 5–20)")
+                for qw in dashboard["quick_wins"][:10]:
+                    st.write(
+                        f"**{qw['keyword']}** — position {qw['position']:.1f} "
+                        f"| {qw['impressions']} impressions | est. traffic: {qw['traffic_estimate']:.0f}"
+                    )
+            else:
+                st.info("No quick wins found. Add ranking data to see opportunities.")
+
+        with col_right:
+            if dashboard["keyword_clusters"]:
+                st.subheader("🗂️ Keyword Clusters")
+                for cluster, kws in list(dashboard["keyword_clusters"].items())[:8]:
+                    st.write(f"**{cluster}**: {', '.join(kws)}")
+
+        # Position bucket breakdown
+        st.divider()
+        st.subheader("Position Distribution")
+        bucket_cols = st.columns(5)
+        for i, (label, key) in enumerate([
+            ("🥇 Top 3", "top3"), ("🏆 4–10", "top10"),
+            ("📊 11–20", "top20"), ("📉 21–50", "top50"), ("🔍 51+", "beyond50"),
+        ]):
+            bucket_cols[i].metric(label, len(dashboard[key]))
+
+    # -- Connections tab ------------------------------------------------------
+    with inner_tabs[1]:
+        st.subheader("Google Search Console")
+
+        with st.expander("➕ Add GSC Property", expanded=False):
+            gsc_url = st.text_input("Property URL (e.g. https://example.com/)", key="gsc_prop_url")
+            gsc_prop_id = st.text_input("GSC Property ID (optional)", key="gsc_prop_id")
+            gsc_access = st.text_input("Access Token (from OAuth)", key="gsc_access_token")
+            gsc_refresh = st.text_input("Refresh Token (from OAuth)", key="gsc_refresh_token")
+
+            gsc_clients = db.list_clients()
+            gsc_client_opts = {"— None —": None}
+            gsc_client_opts.update({c["name"]: c["id"] for c in gsc_clients})
+            gsc_client_sel = st.selectbox("Client:", list(gsc_client_opts.keys()), key="gsc_client_sel")
+
+            if st.button("Save GSC Connection", key="btn_save_gsc"):
+                if not gsc_url:
+                    st.error("Property URL is required.")
+                else:
+                    gsc_id = tracker.add_gsc_connection(
+                        property_url=gsc_url,
+                        client_id=gsc_client_opts[gsc_client_sel],
+                        gsc_property_id=gsc_prop_id,
+                        access_token=gsc_access,
+                        refresh_token=gsc_refresh,
+                    )
+                    st.success(f"GSC connection saved (id={gsc_id}).")
+
+        gsc_conns = tracker.list_gsc_connections()
+        if gsc_conns:
+            for gc in gsc_conns:
+                st.write(f"🔍 **{gc['property_url']}** (id={gc['id']})")
+        else:
+            st.info("No GSC connections yet.")
+
+        st.divider()
+        st.subheader("SEMrush")
+
+        with st.expander("➕ Add SEMrush Connection", expanded=False):
+            sem_domain = st.text_input("Domain (e.g. example.com)", key="sem_domain")
+            sem_key = st.text_input("API Key", type="password", key="sem_api_key")
+            sem_domain_id = st.text_input("SEMrush Domain ID (optional)", key="sem_domain_id")
+
+            sem_clients = db.list_clients()
+            sem_client_opts = {"— None —": None}
+            sem_client_opts.update({c["name"]: c["id"] for c in sem_clients})
+            sem_client_sel = st.selectbox("Client:", list(sem_client_opts.keys()), key="sem_client_sel")
+
+            if st.button("Save SEMrush Connection", key="btn_save_semrush"):
+                if not sem_domain or not sem_key:
+                    st.error("Domain and API key are required.")
+                else:
+                    sem_id = tracker.add_semrush_connection(
+                        domain=sem_domain,
+                        api_key=sem_key,
+                        client_id=sem_client_opts[sem_client_sel],
+                        semrush_domain_id=sem_domain_id,
+                    )
+                    st.success(f"SEMrush connection saved (id={sem_id}).")
+
+        sem_conns = tracker.list_semrush_connections()
+        if sem_conns:
+            for sc in sem_conns:
+                st.write(f"📊 **{sc['domain']}** (id={sc['id']})")
+        else:
+            st.info("No SEMrush connections yet.")
+
+    # -- Add Data tab ---------------------------------------------------------
+    with inner_tabs[2]:
+        st.subheader("➕ Add Ranking Data")
+        st.caption("Manually enter ranking data or trigger a sync from connected sources.")
+
+        add_type = st.radio("Data source:", ["Manual Entry", "Sync from GSC", "Sync from SEMrush"], horizontal=True, key="add_rank_type")
+
+        if add_type == "Manual Entry":
+            pages_m = db.list_pages()
+            m_page_opts = {"— No page —": None}
+            m_page_opts.update({f"[{p['id']}] {p['topic']}": p["id"] for p in pages_m})
+            m_page_sel = st.selectbox("Associated page (optional):", list(m_page_opts.keys()), key="manual_rank_page")
+
+            m_kw = st.text_input("Keyword", key="manual_rank_kw")
+            m_pos = st.number_input("Position", min_value=1.0, max_value=1000.0, value=10.0, step=0.1, key="manual_rank_pos")
+            m_impr = st.number_input("Impressions", min_value=0, value=0, key="manual_rank_impr")
+            m_clicks = st.number_input("Clicks", min_value=0, value=0, key="manual_rank_clicks")
+            m_ctr = st.number_input("CTR (0-1)", min_value=0.0, max_value=1.0, value=0.0, step=0.01, key="manual_rank_ctr")
+            m_date = st.date_input("Date", key="manual_rank_date")
+
+            if st.button("Add Entry", key="btn_add_manual_rank"):
+                if not m_kw.strip():
+                    st.error("Keyword is required.")
+                else:
+                    rid = tracker.add_manual_ranking(
+                        keyword=m_kw,
+                        position=m_pos,
+                        page_id=m_page_opts[m_page_sel],
+                        impressions=int(m_impr),
+                        clicks=int(m_clicks),
+                        ctr=float(m_ctr),
+                        recorded_date=m_date.isoformat(),
+                    )
+                    st.success(f"Ranking entry added (id={rid}).")
+
+        elif add_type == "Sync from GSC":
+            gsc_sync_conns = tracker.list_gsc_connections()
+            if not gsc_sync_conns:
+                st.warning("No GSC connections configured. Add one in the Connections tab.")
+            else:
+                gsc_sync_opts = {f"{c['property_url']} (id={c['id']})": c["id"] for c in gsc_sync_conns}
+                gsc_sel = st.selectbox("GSC Connection:", list(gsc_sync_opts.keys()), key="gsc_sync_sel")
+                if st.button("🔄 Sync from GSC", key="btn_gsc_sync"):
+                    result = tracker.sync_gsc(gsc_sync_opts[gsc_sel])
+                    if result["success"]:
+                        st.success(result["message"])
+                    else:
+                        st.error(result["message"])
+
+        else:
+            sem_sync_conns = tracker.list_semrush_connections()
+            if not sem_sync_conns:
+                st.warning("No SEMrush connections configured. Add one in the Connections tab.")
+            else:
+                sem_sync_opts = {f"{c['domain']} (id={c['id']})": c["id"] for c in sem_sync_conns}
+                sem_sel = st.selectbox("SEMrush Connection:", list(sem_sync_opts.keys()), key="sem_sync_sel")
+                if st.button("🔄 Sync from SEMrush", key="btn_sem_sync"):
+                    result = tracker.sync_semrush(sem_sync_opts[sem_sel])
+                    if result["success"]:
+                        st.success(result["message"])
+                    else:
+                        st.error(result["message"])
+
+    # -- Monthly Report tab ---------------------------------------------------
+    with inner_tabs[3]:
+        st.subheader("📄 Monthly Ranking Report")
+
+        pages_rep = db.list_pages()
+        rep_page_opts = {"All Pages": None}
+        rep_page_opts.update({f"[{p['id']}] {p['topic']}": p["id"] for p in pages_rep})
+        rep_page_sel = st.selectbox("Scope:", list(rep_page_opts.keys()), key="rep_page_sel")
+        rep_page_id = rep_page_opts[rep_page_sel]
+
+        if st.button("Generate Monthly Report", key="btn_gen_report"):
+            report = tracker.generate_monthly_report(page_id=rep_page_id)
+            st.info(report["summary_text"])
+
+            r1, r2, r3, r4 = st.columns(4)
+            r1.metric("Improved", len(report["improvements"]))
+            r2.metric("Declined", len(report["declines"]))
+            r3.metric("New Keywords", len(report["new_keywords"]))
+            r4.metric("Lost Keywords", len(report["lost_keywords"]))
+
+            if report["improvements"]:
+                st.subheader("📈 Improvements")
+                for item in report["improvements"][:10]:
+                    st.write(f"✅ **{item['keyword']}** — moved up {item['delta']:.1f} spots (now #{item['current']:.0f})")
+
+            if report["declines"]:
+                st.subheader("📉 Declines")
+                for item in report["declines"][:10]:
+                    st.write(f"⚠️ **{item['keyword']}** — dropped {abs(item['delta']):.1f} spots (now #{item['current']:.0f})")
+
+            if report["new_keywords"]:
+                st.subheader("🆕 New Keywords")
+                for item in report["new_keywords"][:10]:
+                    st.write(f"🔷 **{item['keyword']}** — position #{item['position']:.0f}")
+
+            if report["lost_keywords"]:
+                st.subheader("🔴 Lost Keywords")
+                for item in report["lost_keywords"][:10]:
+                    st.write(f"🔻 **{item['keyword']}** — last seen at #{item['last_position']:.0f}")
