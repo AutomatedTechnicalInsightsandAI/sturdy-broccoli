@@ -310,9 +310,15 @@ class StagingReviewManager:
             When provided, only pages whose ``quality_scores.overall``
             is at or above this threshold are returned.
         """
-        allowed_sort = {"created_at", "review_status", "title", "last_modified_at"}
-        if sort_by not in allowed_sort:
-            sort_by = "created_at"
+        # Validate and map sort column; only pre-approved column names are used
+        # in the ORDER BY clause, preventing SQL injection.
+        _SORT_COL_MAP = {
+            "created_at":      "created_at",
+            "review_status":   "review_status",
+            "title":           "title",
+            "last_modified_at": "last_modified_at",
+        }
+        safe_sort_col = _SORT_COL_MAP.get(sort_by, "created_at")
         sort_dir = "DESC" if sort_dir.upper() == "DESC" else "ASC"
 
         sql = "SELECT * FROM content_pages WHERE batch_id = ?"
@@ -330,7 +336,7 @@ class StagingReviewManager:
                 sql += " AND template_id = ?"
                 params.append(tmpl["id"])
 
-        sql += f" ORDER BY {sort_by} {sort_dir}"  # noqa: S608
+        sql += f" ORDER BY {safe_sort_col} {sort_dir}"  # noqa: S608
 
         pages = self._db.fetchall(sql, tuple(params))
         enriched = [self._enrich_page(p) for p in pages]
@@ -441,20 +447,28 @@ class StagingReviewManager:
             (status, reviewer_notes, reviewed_by, now, now, status, now, page_id),
         )
 
-        # Keep batch counters in sync
+        # Keep batch counters in sync.
+        # Column names are drawn exclusively from this validated mapping;
+        # the construction below is safe against injection.
         batch_id = page["batch_id"]
-        counter_map = {
-            "draft": "pages_draft",
-            "approved": "pages_approved",
-            "deployed": "pages_deployed",
-            "rejected": "pages_rejected",
-            "needs_revision": "pages_draft",  # counts as draft for review purposes
+        _COUNTER_COLS = {
+            "draft":          "pages_draft",
+            "approved":       "pages_approved",
+            "deployed":       "pages_deployed",
+            "rejected":       "pages_rejected",
+            "needs_revision": "pages_draft",
         }
-        old_col = counter_map.get(old_status)
-        new_col = counter_map.get(status)
+        _ALLOWED_BATCH_COLS = frozenset(_COUNTER_COLS.values())
+        old_col = _COUNTER_COLS.get(old_status)
+        new_col = _COUNTER_COLS.get(status)
         if old_col and new_col and old_col != new_col:
+            # Both column names come from _COUNTER_COLS (all hardcoded),
+            # so f-string interpolation is safe here.
+            assert old_col in _ALLOWED_BATCH_COLS  # defensive check
+            assert new_col in _ALLOWED_BATCH_COLS  # defensive check
             self._db.execute(
-                f"UPDATE batches SET {old_col} = MAX(0, {old_col} - 1), {new_col} = {new_col} + 1 WHERE id = ?",  # noqa: S608
+                f"UPDATE batches SET {old_col} = MAX(0, {old_col} - 1), "  # noqa: S608
+                f"{new_col} = {new_col} + 1 WHERE id = ?",
                 (batch_id,),
             )
         self._db.commit()
@@ -475,6 +489,25 @@ class StagingReviewManager:
             self.update_page_status(pid, status, reviewer_notes, reviewed_by)
             for pid in page_ids
         ]
+
+    def delete_page(self, page_id: int) -> None:
+        """
+        Permanently remove a page and update the owning batch counter.
+
+        Raises :class:`ValueError` if the page does not exist.
+        """
+        page = self.get_page(page_id)
+        if page is None:
+            raise ValueError(f"Page {page_id} not found")
+        batch_id = page["batch_id"]
+        self._db.execute(
+            "DELETE FROM content_pages WHERE id = ?", (page_id,)
+        )
+        self._db.execute(
+            "UPDATE batches SET total_pages = MAX(0, total_pages - 1) WHERE id = ?",
+            (batch_id,),
+        )
+        self._db.commit()
 
     def apply_branding_to_pages(
         self,

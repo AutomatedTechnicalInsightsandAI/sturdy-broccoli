@@ -1,6 +1,7 @@
 """Tests for Database schema and StagingReviewManager."""
 from __future__ import annotations
 
+import io
 import pytest
 
 from src.database import Database
@@ -170,6 +171,29 @@ class TestPageCRUD:
     ) -> None:
         pages = mgr.get_batch_pages(batch["id"], min_quality=87.0)
         assert all(p["quality_scores"].get("overall", 0) >= 87.0 for p in pages)
+
+    def test_delete_page_removes_page(
+        self, mgr: StagingReviewManager, batch: dict
+    ) -> None:
+        p = mgr.add_page(batch["id"], title="Page to Delete")
+        mgr.delete_page(p["id"])
+        assert mgr.get_page(p["id"]) is None
+
+    def test_delete_page_updates_batch_counter(
+        self, mgr: StagingReviewManager, batch: dict
+    ) -> None:
+        p = mgr.add_page(batch["id"], title="Counted Page")
+        b_before = mgr.get_batch(batch["id"])
+        assert b_before["total_pages"] == 1
+        mgr.delete_page(p["id"])
+        b_after = mgr.get_batch(batch["id"])
+        assert b_after["total_pages"] == 0
+
+    def test_delete_page_unknown_raises(
+        self, mgr: StagingReviewManager
+    ) -> None:
+        with pytest.raises(ValueError, match="not found"):
+            mgr.delete_page(99999)
 
 
 # ---------------------------------------------------------------------------
@@ -499,9 +523,6 @@ class TestDeployment:
             names = z.namelist()
         assert any(n.endswith(".html") for n in names)
         assert "metadata.csv" in names
-
-
-import io  # noqa: E402 — needed by test_deploy_zip_contains_html_and_csv
 
 
 # ---------------------------------------------------------------------------

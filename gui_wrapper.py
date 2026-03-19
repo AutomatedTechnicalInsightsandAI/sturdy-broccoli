@@ -523,12 +523,7 @@ def _render_page_tile(page: dict, selected_ids: list, mgr: object) -> None:
         d_c1, d_c2 = st.columns(2)
         with d_c1:
             if st.button("Yes, delete", key=f"confirm_del_yes_{page_id}"):
-                mgr._db.execute("DELETE FROM content_pages WHERE id = ?", (page_id,))
-                mgr._db.execute(
-                    "UPDATE batches SET total_pages = MAX(0, total_pages - 1) WHERE id = ?",
-                    (page.get("batch_id"),),
-                )
-                mgr._db.commit()
+                mgr.delete_page(page_id)
                 st.session_state.pop(f"confirm_delete_{page_id}", None)
                 st.rerun()
         with d_c2:
