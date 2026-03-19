@@ -334,7 +334,13 @@ class Database:
             conn.execute(sql, params)
 
     def commit(self) -> None:
-        """Explicit commit (for callers that manage their own transaction)."""
+        """Explicit commit for in-memory databases.
+
+        For in-memory databases the persistent connection does not auto-commit,
+        so an explicit commit is required after a series of ``execute()`` calls.
+        For file-based databases each ``_connect()`` context manager auto-commits
+        on exit, so this is effectively a no-op in that case.
+        """
         if self._in_memory and self._memory_conn is not None:
             self._memory_conn.commit()
         # For file-based databases each _connect() call auto-commits on exit;
@@ -477,6 +483,9 @@ class Database:
         for col, val in fields.items():
             if col not in safe_cols:
                 continue
+            # Defensive: column names must contain only safe characters.
+            # Combined with the safe_cols allowlist this fully prevents injection.
+            assert col.replace("_", "").isalnum(), f"Unsafe column name: {col}"
             if col in ("quality_scores", "preview_state") and isinstance(val, dict):
                 val = json.dumps(val)
             set_parts.append(f"{col} = ?")
@@ -486,8 +495,8 @@ class Database:
         set_parts.append("updated_at = ?")
         params.append(_now())
         params.append(page_id)
-        # Column names are validated against safe_cols (hardcoded allowlist);
-        # values are passed as bound parameters — this is safe from SQL injection.
+        # Column names are validated against safe_cols (hardcoded allowlist)
+        # and checked to be alphanumeric+underscore; values are bound parameters.
         self.execute(
             f"UPDATE batch_pages SET {', '.join(set_parts)} WHERE id = ?",  # noqa: S608
             tuple(params),
@@ -820,11 +829,18 @@ class Database:
             )
 
     def delete_page(self, page_id: int) -> None:
-        """Delete a page from ``batch_pages`` or the legacy ``pages`` table."""
-        if self._get_staging_page(page_id) is not None:
-            self.execute("DELETE FROM batch_pages WHERE id = ?", (page_id,))
-            return
+        """Delete a page from ``batch_pages`` or the legacy ``pages`` table.
+
+        Attempts to delete from ``batch_pages`` first; if no row is affected
+        the legacy ``pages`` table is tried.  This avoids a separate SELECT
+        just to determine which table owns the record.
+        """
         with self._connect() as conn:
+            cur = conn.execute(
+                "DELETE FROM batch_pages WHERE id = ?", (page_id,)
+            )
+            if cur.rowcount > 0:
+                return
             conn.execute("DELETE FROM pages WHERE id = ?", (page_id,))
 
     # ------------------------------------------------------------------
