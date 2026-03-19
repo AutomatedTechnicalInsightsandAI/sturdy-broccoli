@@ -18,6 +18,10 @@ from src.multi_format_generator import MultiFormatGenerator
 from src.prompt_builder import PromptBuilder
 from src.quality_scorer import QualityScorer
 from src.template_manager import TemplateManager
+from src.agency_dashboard import AgencyDashboard
+from src.batch_validator import BatchValidator
+from src.staging_environment import StagingEnvironment
+from src.staging_review import StagingReviewManager
 
 
 def _json_default(obj: object) -> str:
@@ -43,13 +47,16 @@ if "db" not in st.session_state:
 
 db: Database = st.session_state.db
 
-tab_prompt, tab_hub, tab_competitor, tab_multiformat, tab_template, tab_library = st.tabs([
+tab_prompt, tab_hub, tab_competitor, tab_multiformat, tab_template, tab_library, tab_staging, tab_validator, tab_agency = st.tabs([
     "📝 Prompt Generator",
     "🕸️ Hub & Spoke",
     "🔍 Competitor Analysis",
     "📢 Multi-Format",
     "🏗️ Landing Page Templates",
     "📚 Page Library",
+    "🎭 Staging Review",
+    "✅ Batch Validator",
+    "💼 Agency Dashboard",
 ])
 
 # ---------------------------------------------------------------------------
@@ -632,3 +639,379 @@ with tab_library:
                     file_name="page_library_export.html",
                     mime="text/html",
                 )
+
+# ---------------------------------------------------------------------------
+# Tab 7: Staging Review — Client approval workflow
+# ---------------------------------------------------------------------------
+
+with tab_staging:
+    st.header("🎭 Staging Review")
+    st.caption(
+        "Review generated pages before deployment. Approve or reject pages, "
+        "add client feedback, and track revision history."
+    )
+
+    if "staging_env" not in st.session_state:
+        st.session_state.staging_env = StagingEnvironment(db)
+        st.session_state.staging_review_mgr = StagingReviewManager(db)
+
+    staging_env: StagingEnvironment = st.session_state.staging_env
+    staging_review_mgr: StagingReviewManager = st.session_state.staging_review_mgr
+
+    # -- Batch selector -------------------------------------------------------
+    batches = staging_review_mgr.list_batches()
+    if not batches:
+        st.info("No staging batches found. Create a batch first via the Hub & Spoke tab.")
+    else:
+        batch_options = {f"{b['name']} (id:{b['id']})": b["id"] for b in batches}
+        selected_label = st.selectbox("Select Batch", list(batch_options.keys()))
+        selected_batch_id = batch_options[selected_label]
+
+        gallery = staging_env.get_batch_gallery(selected_batch_id)
+        batch_meta = gallery["batch"]
+        pages = gallery["pages"]
+
+        if batch_meta:
+            col1, col2, col3 = st.columns(3)
+            col1.metric("Total Pages", batch_meta.get("total_pages", len(pages)))
+            col2.metric("Approved", batch_meta.get("pages_approved", 0))
+            col3.metric("Draft", batch_meta.get("pages_draft", 0))
+
+        st.divider()
+
+        # -- Status filter ----------------------------------------------------
+        status_filter = st.radio(
+            "Filter by Status",
+            ["All", "draft", "approved", "needs_revision", "rejected", "deployed"],
+            horizontal=True,
+        )
+        filtered_pages = (
+            pages
+            if status_filter == "All"
+            else [p for p in pages if p.get("status") == status_filter]
+        )
+
+        # -- Page gallery -------------------------------------------------
+        if not filtered_pages:
+            st.info(f"No pages with status '{status_filter}'.")
+        else:
+            # Bulk action controls
+            all_ids = [p["id"] for p in filtered_pages if p.get("id")]
+            st.write(f"**{len(filtered_pages)} page(s) shown**")
+            col_a, col_r, _ = st.columns([1, 1, 4])
+            if col_a.button("✅ Approve All Visible"):
+                count = staging_env.bulk_approve(all_ids, reviewer="manager")
+                st.success(f"Approved {count} pages.")
+                st.rerun()
+            if col_r.button("❌ Reject All Visible"):
+                count = staging_env.bulk_reject(all_ids, reviewer="manager")
+                st.warning(f"Rejected {count} pages.")
+                st.rerun()
+
+            for page in filtered_pages:
+                with st.expander(
+                    f"📄 {page.get('title', 'Untitled')} — {page.get('status', '?')}"
+                ):
+                    st.write(f"**Slug:** `{page.get('slug')}`")
+                    st.write(f"**Keyword:** {page.get('primary_keyword', '—')}")
+                    st.write(f"**Word Count:** {page.get('word_count', 0)}")
+                    st.write(f"**Template:** {page.get('assigned_template', '—')}")
+                    if page.get("meta_description"):
+                        st.write(f"**Meta:** {page['meta_description']}")
+
+                    # Individual approve/reject
+                    c1, c2 = st.columns(2)
+                    pid = page.get("id")
+                    if pid:
+                        if c1.button("✅ Approve", key=f"approve_{pid}"):
+                            staging_env.bulk_approve([pid], reviewer="manager")
+                            st.rerun()
+                        if c2.button("❌ Reject", key=f"reject_{pid}"):
+                            staging_env.bulk_reject([pid], reviewer="manager")
+                            st.rerun()
+
+                        # Comment box
+                        comment = st.text_input(
+                            "Add comment", key=f"comment_{pid}", placeholder="Enter feedback…"
+                        )
+                        if st.button("💬 Save Comment", key=f"save_comment_{pid}") and comment:
+                            staging_env.add_page_comment(pid, comment, reviewer="client")
+                            st.success("Comment saved.")
+
+        st.divider()
+
+        # -- Deployment readiness --------------------------------------------
+        readiness = staging_env.get_deploy_readiness(selected_batch_id)
+        if readiness["ready"]:
+            st.success(
+                f"✅ All {readiness['approved_count']} pages approved — "
+                "ready for deployment!"
+            )
+        else:
+            st.warning(
+                f"⚠️ {readiness['approved_count']}/{readiness['total_count']} "
+                f"pages approved. {len(readiness['blocked_pages'])} page(s) blocked."
+            )
+
+
+# ---------------------------------------------------------------------------
+# Tab 8: Batch Validator — Hub-and-Spoke structure checker
+# ---------------------------------------------------------------------------
+
+with tab_validator:
+    st.header("✅ Batch Validator")
+    st.caption(
+        "Validate your hub-and-spoke SILO structure before deployment. "
+        "Checks internal links, keyword density, schema markup, and orphaned pages."
+    )
+
+    if "batch_validator" not in st.session_state:
+        st.session_state.batch_validator = BatchValidator()
+        st.session_state.validator_review_mgr = StagingReviewManager(db)
+
+    validator: BatchValidator = st.session_state.batch_validator
+    val_review_mgr: StagingReviewManager = st.session_state.validator_review_mgr
+
+    val_batches = val_review_mgr.list_batches()
+    if not val_batches:
+        st.info("No batches found. Generate pages first.")
+    else:
+        val_batch_options = {
+            f"{b['name']} (id:{b['id']})": b["id"] for b in val_batches
+        }
+        val_selected_label = st.selectbox(
+            "Select Batch to Validate", list(val_batch_options.keys()), key="val_batch"
+        )
+        val_batch_id = val_batch_options[val_selected_label]
+
+        hub_slug_input = st.text_input(
+            "Hub Page Slug (leave blank for auto-detect)",
+            placeholder="e.g. postgresql-optimisation",
+        )
+
+        if st.button("🔍 Run Validation"):
+            val_pages = val_review_mgr.get_batch_pages(val_batch_id)
+
+            # Convert content_pages format to batch_validator format
+            normalised = []
+            for p in val_pages:
+                normalised.append(
+                    {
+                        "slug": p.get("slug"),
+                        "title": p.get("title"),
+                        "h1_content": p.get("h1_content"),
+                        "primary_keyword": p.get("primary_keyword", ""),
+                        "content_markdown": p.get("content_markdown", ""),
+                        "internal_links": p.get("internal_links") or [],
+                        "schema_json_ld": None,
+                        "hub_page_id": p.get("hub_page_id"),
+                        "is_hub": p.get("hub_page_id") is None,
+                    }
+                )
+
+            result = validator.validate(
+                normalised,
+                hub_slug=hub_slug_input.strip() or None,
+            )
+
+            # Display result
+            if result.valid:
+                st.success("✅ Hub-and-Spoke structure is valid!")
+            else:
+                st.error("❌ Validation failed — see issues below.")
+
+            col_a, col_b, col_c, col_d = st.columns(4)
+            col_a.metric("Spokes", result.spoke_count)
+            col_b.metric(
+                "Internal Links",
+                f"{result.valid_internal_links}/{result.total_internal_links}",
+            )
+            col_c.metric("Keyword Density", f"{result.keyword_density:.1f}%")
+            col_d.metric("Schema Valid", "✅" if result.schema_valid else "❌")
+
+            st.subheader("Validation Report")
+            st.code(result.to_report(), language="text")
+
+            if result.orphaned_pages:
+                st.warning(f"Orphaned pages: {', '.join(result.orphaned_pages)}")
+
+            if result.issues:
+                st.subheader(f"Issues ({len(result.issues)})")
+                for issue in result.issues:
+                    icon = "❌" if issue.severity == "error" else "⚠️"
+                    page_ref = f"`{issue.page_slug}` — " if issue.page_slug else ""
+                    st.write(f"{icon} {page_ref}{issue.message}")
+
+
+# ---------------------------------------------------------------------------
+# Tab 9: Agency Dashboard — Client pipeline + revenue tracking
+# ---------------------------------------------------------------------------
+
+with tab_agency:
+    st.header("💼 Agency Dashboard")
+    st.caption(
+        "Track your client pipeline, batch statuses, revenue, "
+        "and deployment history."
+    )
+
+    if "agency_dashboard" not in st.session_state:
+        st.session_state.agency_dashboard = AgencyDashboard(db)
+
+    agency: AgencyDashboard = st.session_state.agency_dashboard
+
+    # -- Revenue KPIs ---------------------------------------------------------
+    stats = agency.get_revenue_stats()
+    k1, k2, k3, k4, k5 = st.columns(5)
+    k1.metric("💰 Total Revenue", f"${stats['total_revenue']:,.0f}")
+    k2.metric("📝 Draft", stats["draft_batches"])
+    k3.metric("🎭 Staged", stats["staged_batches"])
+    k4.metric("✅ Approved", stats["approved_batches"])
+    k5.metric("🚀 Deployed", stats["deployed_batches"])
+
+    st.divider()
+
+    # -- Add new client -------------------------------------------------------
+    with st.expander("➕ Add New Client"):
+        with st.form("add_client_form"):
+            c_name = st.text_input("Client Name", placeholder="Acme Corp")
+            c_slug = st.text_input("Slug", placeholder="acme-corp")
+            c_industry = st.text_input("Industry", placeholder="SaaS")
+            c_email = st.text_input("Email", placeholder="contact@acme.com")
+            c_website = st.text_input("Website", placeholder="https://acme.com")
+            c_value = st.number_input(
+                "Contract Value ($)", min_value=0.0, step=500.0, value=2000.0
+            )
+            if st.form_submit_button("Save Client"):
+                if c_name and c_slug:
+                    try:
+                        agency.create_client(
+                            name=c_name,
+                            slug=c_slug,
+                            industry=c_industry,
+                            email=c_email,
+                            website=c_website,
+                            contract_value=c_value,
+                        )
+                        st.success(f"Client '{c_name}' created.")
+                        st.rerun()
+                    except Exception as exc:  # noqa: BLE001
+                        st.error(f"Error: {exc}")
+                else:
+                    st.warning("Name and slug are required.")
+
+    # -- Add new batch --------------------------------------------------------
+    with st.expander("➕ Create New Staging Batch"):
+        with st.form("add_batch_form"):
+            b_name = st.text_input("Batch Name", placeholder="Q2 Campaign — Landing Pages")
+            b_client = st.text_input("Client Name", placeholder="Acme Corp")
+            b_pages = st.number_input("Total Pages", min_value=1, value=10, step=1)
+            b_price = st.number_input(
+                "Price Paid ($)", min_value=0.0, step=500.0, value=3000.0
+            )
+            if st.form_submit_button("Create Batch"):
+                if b_name:
+                    bid = agency.create_staging_batch(
+                        batch_name=b_name,
+                        client_name=b_client,
+                        total_pages=int(b_pages),
+                        price_paid=b_price,
+                    )
+                    st.success(f"Batch '{b_name}' created (id: {bid}).")
+                    st.rerun()
+
+    st.divider()
+
+    # -- Pipeline view --------------------------------------------------------
+    st.subheader("📊 Batch Pipeline")
+    pipeline = agency.get_pipeline_summary()
+    if not pipeline:
+        st.info("No batches yet. Create one above.")
+    else:
+        for batch in pipeline:
+            status_icon = {
+                "draft": "📝",
+                "staged": "🎭",
+                "approved": "✅",
+                "deployed": "🚀",
+            }.get(batch.get("status", "draft"), "📄")
+
+            with st.expander(
+                f"{status_icon} {batch.get('batch_name')} — "
+                f"{batch.get('client_name', '—')} | "
+                f"${batch.get('price_paid', 0):,.0f}"
+            ):
+                col_s, col_p, col_r = st.columns(3)
+                col_s.write(f"**Status:** {batch.get('status')}")
+                col_p.write(f"**Pages:** {batch.get('total_pages', 0)}")
+                col_r.write(f"**Reviews:** {batch.get('review_count', 0)}")
+
+                if batch.get("deployed_url"):
+                    st.write(f"**Live URL:** {batch['deployed_url']}")
+
+                # Status advancement
+                current = batch.get("status", "draft")
+                next_status_map = {
+                    "draft": "staged",
+                    "staged": "approved",
+                    "approved": "deployed",
+                }
+                next_status = next_status_map.get(current)
+                if next_status:
+                    deploy_url = ""
+                    if next_status == "deployed":
+                        deploy_url = st.text_input(
+                            "Deployed URL",
+                            key=f"deploy_url_{batch['id']}",
+                            placeholder="https://client-site.com",
+                        )
+                    if st.button(
+                        f"Advance to {next_status.upper()} →",
+                        key=f"advance_{batch['id']}",
+                    ):
+                        agency.advance_batch_status(
+                            batch["id"], next_status, deployed_url=deploy_url
+                        )
+                        if next_status == "deployed":
+                            agency.record_deployment(
+                                batch_id=batch["id"],
+                                deployed_by="admin",
+                                deployed_url=deploy_url,
+                            )
+                        st.success(f"Batch advanced to '{next_status}'.")
+                        st.rerun()
+
+                # Client comments
+                new_comment = st.text_input(
+                    "Add Client Comment",
+                    key=f"batch_comment_{batch['id']}",
+                    placeholder="Client feedback…",
+                )
+                comment_status = st.radio(
+                    "Comment Status",
+                    ["pending", "approved", "rejected"],
+                    horizontal=True,
+                    key=f"comment_status_{batch['id']}",
+                )
+                if (
+                    st.button("💬 Save Comment", key=f"save_batch_comment_{batch['id']}")
+                    and new_comment
+                ):
+                    agency.add_client_review(
+                        batch["id"], new_comment, status=comment_status
+                    )
+                    st.success("Comment saved.")
+
+    st.divider()
+
+    # -- Client list ----------------------------------------------------------
+    st.subheader("👥 Clients")
+    clients = agency.list_clients()
+    if not clients:
+        st.info("No clients yet. Add one above.")
+    else:
+        for client in clients:
+            st.write(
+                f"**{client['name']}** — {client.get('industry', '—')} | "
+                f"${client.get('contract_value', 0):,.0f} | "
+                f"{client.get('email', '—')} | {client.get('status', 'active')}"
+            )
