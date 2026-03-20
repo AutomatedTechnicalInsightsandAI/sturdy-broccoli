@@ -19,6 +19,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from src.premium_page_builder import PremiumPageBuilder
+
 
 # ---------------------------------------------------------------------------
 # Template definitions
@@ -530,3 +532,142 @@ class TemplateManager:
         lines.append("</section>")
 
         return "\n".join(lines)
+
+    def render_premium_page(self, service_type: str) -> str:
+        """
+        Render a complete, production-quality HTML5 page for the given
+        service type using :class:`PremiumPageBuilder`.
+
+        The template data for *service_type* is mapped to a
+        ``PremiumPageBuilder``-compatible config dict and passed to
+        :meth:`PremiumPageBuilder.build`.
+
+        Parameters
+        ----------
+        service_type:
+            Key identifying the service template (e.g. ``'digital_pr'``).
+
+        Returns
+        -------
+        str
+            A fully self-contained HTML5 document string.
+        """
+        tmpl = self.get_template(service_type)
+
+        testimonials_items = []
+        for t in tmpl["testimonials"]:
+            raw = t["author"]
+            # Expected format: "Name, Role — Company" or "Name — Company" or just "Name"
+            if "—" in raw:
+                before_dash, company = raw.split("—", 1)
+                company = company.strip()
+            else:
+                before_dash = raw
+                company = ""
+            if "," in before_dash:
+                author_name, role = before_dash.split(",", 1)
+                author_name = author_name.strip()
+                role = role.strip()
+            else:
+                author_name = before_dash.strip()
+                role = ""
+            testimonials_items.append({
+                "quote": t["quote"],
+                "author": author_name,
+                "role": role,
+                "company": company,
+            })
+
+        config: dict[str, Any] = {
+            "brand": {
+                "name": tmpl["service_name"],
+                "tagline": tmpl["service_description"][:80] + "…",
+                "primary": "#1e3a5f",
+                "accent": "#3b82f6",
+                "dark": "#0f172a",
+                "light": "#f8fafc",
+            },
+            "meta": {
+                "title": tmpl["h1"],
+                "description": tmpl["service_description"],
+            },
+            "nav_links": [
+                {"text": "Services", "url": "#services"},
+                {"text": "Results",  "url": "#stats"},
+                {"text": "Pricing",  "url": "#pricing"},
+            ],
+            "hero": {
+                "badge": tmpl["trust_factors"][0] if tmpl["trust_factors"] else "",
+                "heading": tmpl["h1"],
+                "subheading": tmpl["service_description"],
+                "video_url": "",
+                "poster_url": "",
+            },
+            "cta": {
+                "primary_text": tmpl["cta"]["primary"],
+                "secondary_text": tmpl["cta"]["secondary"],
+                "url": "#contact",
+                "banner_heading": f"Ready to grow with {tmpl['service_name']}?",
+                "banner_subheading": tmpl["service_description"],
+            },
+            "stats": [
+                {"value": tf, "label": ""}
+                for tf in tmpl["trust_factors"][:4]
+            ],
+            "problem": {
+                "heading": "Common Challenges",
+                "points": [
+                    f"Struggling with {tmpl['primary_keyword']}",
+                    "Low visibility in search results",
+                    "Missing out on high-intent traffic",
+                    "No clear ROI from current strategy",
+                ],
+            },
+            "solution": {
+                "heading": "Our Approach",
+                "points": tmpl["secondary_keywords"][:4],
+            },
+            "services": {
+                "heading": f"{tmpl['service_name']} Services",
+                "subheading": tmpl["service_description"],
+                "items": [
+                    {"icon": "✅", "title": h2, "description": ""}
+                    for h2 in tmpl["h2_sections"][:6]
+                ],
+            },
+            "testimonials": {
+                "heading": "What Our Clients Say",
+                "items": testimonials_items,
+            },
+            "pricing": {
+                "heading": "Pricing",
+                "subheading": "Transparent, performance-focused pricing.",
+                "tiers": [
+                    {
+                        "name": "Starter",
+                        "price": "Contact Us",
+                        "period": "",
+                        "description": tmpl["cta"]["primary"],
+                        "features": tmpl["trust_factors"],
+                        "cta_text": tmpl["cta"]["primary"],
+                        "cta_url": "#contact",
+                        "featured": False,
+                    },
+                ],
+            },
+            "footer": {
+                "columns": [
+                    {
+                        "heading": "Related Services",
+                        "links": [
+                            {"text": svc, "url": "#services"}
+                            for svc in tmpl["related_services"]
+                        ],
+                    }
+                ],
+                "social": [],
+                "copyright": f"© 2026 {tmpl['service_name']}. All rights reserved.",
+            },
+        }
+
+        return PremiumPageBuilder().build(config)
