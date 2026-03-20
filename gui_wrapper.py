@@ -439,6 +439,7 @@ with tab_builder:
 # ---------------------------------------------------------------------------
 
 import re as _re
+import json as _json_editor  # used in SEO metadata panel
 
 with tab_library:
     st.header("📚 Page Library")
@@ -496,7 +497,7 @@ with tab_library:
     with col_f2:
         filter_service = st.selectbox(
             "Filter by Service Type",
-            ["All", "html5_page_builder", "hub_and_spoke", "landing_page", "blog_article"],
+            ["All", "html5_page_builder", "landing_page", "blog_article"],
             key="lib_filter_service",
         )
     with col_f3:
@@ -755,7 +756,7 @@ with tab_staging_editor:
         # -- Batch selector ---------------------------------------------------
         batches = staging_review_mgr.list_batches()
         if not batches:
-            st.info("No staging batches found. Create a batch first via the Agency Dashboard tab.")
+            st.info("No staging batches found. Create a batch first via the **💼 Agency Dashboard** tab.")
         else:
             batch_options = {f"{b['name']} (id:{b['id']})": b["id"] for b in batches}
             selected_label = st.selectbox("Select Batch", list(batch_options.keys()))
@@ -995,11 +996,8 @@ with tab_staging_editor:
 
             # ── B. SEO Metadata Panel ────────────────────────────────────
             with st.expander("🔖 SEO Metadata & Schema", expanded=False):
-                import re as _re_editor
-                import json as _json_editor
-
-                _title_m = _re_editor.search(r"<title[^>]*>(.*?)</title>", latest_html, _re_editor.IGNORECASE | _re_editor.DOTALL)
-                _meta_m = _re_editor.search(r'<meta\s+name=["\']description["\']\s+content=["\'](.*?)["\']', latest_html, _re_editor.IGNORECASE)
+                _title_m = _re.search(r"<title[^>]*>(.*?)</title>", latest_html, _re.IGNORECASE | _re.DOTALL)
+                _meta_m = _re.search(r'<meta\s+name=["\']description["\']\s+content=["\'](.*?)["\']', latest_html, _re.IGNORECASE)
 
                 seo_title = st.text_input(
                     "Meta Title",
@@ -1044,9 +1042,9 @@ with tab_staging_editor:
                         st.error("No HTML content to insert into.")
                     else:
                         script_tag = f'\n<script type="application/ld+json">\n{schema_code}\n</script>'
-                        updated_html = _re_editor.sub(
+                        updated_html = _re.sub(
                             r"(</head>)", script_tag + r"\1",
-                            latest_html, flags=_re_editor.IGNORECASE
+                            latest_html, flags=_re.IGNORECASE
                         )
                         db.save_content_version(
                             selected_page_id,
@@ -1085,13 +1083,12 @@ with tab_staging_editor:
                     elif not internal_links_input.strip():
                         st.warning("Enter at least one URL to suggest link placements.")
                     else:
-                        import re as _re_links
                         _urls = [u.strip() for u in internal_links_input.strip().splitlines() if u.strip()]
                         _suggestions = []
                         for _url in _urls:
                             _domain_part = _url.split("/")[-1].replace("-", " ").replace("_", " ").title()
                             _kw_search = anchor_pattern.replace("{keyword}", _domain_part) if anchor_pattern else _domain_part
-                            _matches = list(_re_links.finditer(_re_links.escape(_kw_search), latest_html, _re_links.IGNORECASE))
+                            _matches = list(_re.finditer(_re.escape(_kw_search), latest_html, _re.IGNORECASE))
                             _suggestions.append({
                                 "url": _url,
                                 "keyword": _kw_search,
