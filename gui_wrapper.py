@@ -612,6 +612,18 @@ with tab_library:
                                     lambda m: m.group(1) + edit_title + m.group(3),
                                     final_html, flags=_re.IGNORECASE | _re.DOTALL
                                 )
+                            if edit_meta:
+                                final_html = _re.sub(
+                                    r'(<meta\s+name=["\']description["\']\s+content=["\']).*?(["\'])',
+                                    lambda m: m.group(1) + edit_meta + m.group(2),
+                                    final_html, flags=_re.IGNORECASE
+                                )
+                            if edit_h1:
+                                final_html = _re.sub(
+                                    r"(<h1[^>]*>)(.*?)(</h1>)",
+                                    lambda m: m.group(1) + edit_h1 + m.group(3),
+                                    final_html, flags=_re.IGNORECASE | _re.DOTALL
+                                )
                             db.save_content_version(
                                 page["id"],
                                 content_html=final_html,
