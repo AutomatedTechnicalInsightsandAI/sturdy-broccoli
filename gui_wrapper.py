@@ -12,13 +12,8 @@ from datetime import date, datetime
 
 import streamlit as st
 
-from src.competitor_analyzer import CompetitorAnalyzer
 from src.database import Database
 from src.html5_page_builder import HTML5PageBuilder
-from src.multi_format_generator import MultiFormatGenerator
-from src.prompt_builder import PromptBuilder
-from src.quality_scorer import QualityScorer
-from src.template_manager import TemplateManager
 from src.agency_dashboard import AgencyDashboard
 from src.batch_validator import BatchValidator
 from src.staging_environment import StagingEnvironment
@@ -145,19 +140,13 @@ if "db" not in st.session_state:
 
 db: Database = st.session_state.db
 
-tab_dashboard, tab_builder, tab_prompt, tab_hub, tab_competitor, tab_multiformat, tab_template, tab_library, tab_staging, tab_validator, tab_agency, tab_editor, tab_wp, tab_ranking = st.tabs([
+tab_dashboard, tab_builder, tab_library, tab_staging_editor, tab_validator, tab_agency, tab_wp, tab_ranking = st.tabs([
     "🏠 Dashboard",
     "⚡ Page Builder",
-    "📝 Prompt Generator",
-    "🕸️ Hub & Spoke",
-    "🔍 Competitor Analysis",
-    "📢 Multi-Format",
-    "🏗️ Landing Page Templates",
     "📚 Page Library",
-    "🎭 Staging Review",
+    "🎭 Staging & Editor",
     "✅ Batch Validator",
     "💼 Agency Dashboard",
-    "✏️ Content Editor",
     "🚀 WordPress Publisher",
     "📊 Ranking Tracker",
 ])
@@ -230,9 +219,9 @@ with tab_dashboard:
         st.markdown('<div class="section-title">⚡ Quick Actions</div>', unsafe_allow_html=True)
         st.markdown("**Start building:**")
         st.markdown("• [⚡ New Enterprise Page](#) → **Page Builder** tab")
-        st.markdown("• [🕸️ New Content Cluster](#) → **Hub & Spoke** tab")
-        st.markdown("• [📝 Generate Prompts](#) → **Prompt Generator** tab")
         st.markdown("• [🚀 Deploy to WordPress](#) → **WordPress Publisher** tab")
+        st.markdown("• [💼 Agency Dashboard](#) → **Agency Dashboard** tab")
+        st.markdown("• [📊 Track Rankings](#) → **Ranking Tracker** tab")
         st.divider()
         st.markdown("**Platform stats:**")
         st.write(f"📄 Draft: **{stats.get('draft_pages', 0)}** · 🔍 In Review: **{stats.get('review_pages', 0)}**")
@@ -248,11 +237,11 @@ with tab_dashboard:
         st.markdown("**⚡ Page Builder**")
         st.caption("Generate enterprise HTML5 pages with 6 layout templates")
     with c2:
-        st.markdown("**🕸️ Hub & Spoke**")
-        st.caption("Build content clusters and batch-generate related pages")
-    with c3:
         st.markdown("**🚀 WordPress**")
         st.caption("One-click deploy to any WordPress site with scheduling")
+    with c3:
+        st.markdown("**💼 Agency**")
+        st.caption("Track client pipeline, revenue, and batch statuses")
     with c4:
         st.markdown("**📊 Rankings**")
         st.caption("Track GSC & SEMrush rankings across all your clients")
@@ -446,581 +435,18 @@ with tab_builder:
 
 
 # ---------------------------------------------------------------------------
-# Tab 2: Prompt Generator (original functionality)
+# Tab 2: Page Library (database-backed) — enhanced
 # ---------------------------------------------------------------------------
 
-with tab_prompt:
-    st.header("Prompt Generator")
-    st.caption("Build system and chain-of-thought prompts for a single content page.")
-
-    page_data_input = st.text_area(
-        "Enter Page Data (JSON):",
-        height=300,
-        placeholder='{"topic": "...", "primary_keyword": "...", ...}',
-        key="prompt_page_data",
-    )
-
-    dry_run = st.checkbox("Dry-run mode (show prompts only, no LLM call)", value=True, key="prompt_dry_run")
-
-    if st.button("Generate Prompts", key="btn_generate_prompts"):
-        if not page_data_input.strip():
-            st.error("Please enter page data JSON before generating.")
-        else:
-            try:
-                page_data = json.loads(page_data_input)
-            except json.JSONDecodeError as exc:
-                st.error(f"Invalid JSON: {exc}")
-            else:
-                try:
-                    builder = PromptBuilder()
-
-                    if dry_run:
-                        st.subheader("System Prompt")
-                        system_prompt = builder.build_system_prompt(page_data)
-                        st.code(system_prompt, language="markdown")
-
-                        st.subheader("Chain-of-Thought Prompts")
-                        cot_prompts = builder.build_chain_of_thought_prompts(page_data)
-                        for stage, prompt in cot_prompts.items():
-                            with st.expander(f"Stage: {stage}"):
-                                st.code(prompt, language="markdown")
-                    else:
-                        st.info(
-                            "Live generation requires an OpenAI API key. "
-                            "Use the CLI for full generation: "
-                            "`python generator.py generate --page-data <file> --openai-key <key>`"
-                        )
-                except ValueError as exc:
-                    st.error(f"Page data validation error: {exc}")
-
-# ---------------------------------------------------------------------------
-# Tab 3: Hub & Spoke Content Cluster Builder
-# ---------------------------------------------------------------------------
-
-with tab_hub:
-    st.header("🕸️ Hub & Spoke Content Cluster Builder")
-    st.caption(
-        "Build an entire content cluster: select a hub layout, auto-generate spoke topics, "
-        "assign layout templates to each spoke, and batch-generate all pages with consistent branding."
-    )
-
-    _pb_hub = HTML5PageBuilder()
-
-    col_hub_left, col_hub_right = st.columns([1, 1])
-
-    with col_hub_left:
-        hub_json_input = st.text_area(
-            "Hub Page Data (JSON):",
-            height=200,
-            placeholder='{"topic": "LinkedIn Marketing", "primary_keyword": "...", ...}',
-            key="hub_page_data",
-        )
-        hub_topic_hint = st.text_input(
-            "Or load example:", value="", placeholder="e.g. local_seo, linkedin_marketing",
-            key="hub_example_hint",
-        )
-        if hub_topic_hint:
-            tm = TemplateManager()
-            if hub_topic_hint in tm.list_service_types():
-                rendered = tm.render_page_data(hub_topic_hint)
-                st.info(f"Loaded template for: {hub_topic_hint}")
-                st.json(rendered)
-
-        st.markdown("**Hub Layout Template:**")
-        hub_layout = st.selectbox(
-            "Hub page layout:",
-            list(_pb_hub.LAYOUTS.keys()),
-            format_func=lambda k: f"{_pb_hub.LAYOUTS[k]['icon']} {_pb_hub.LAYOUTS[k]['label']}",
-            key="hub_layout",
-        )
-
-        hub_business = st.text_input("Business / Brand Name", placeholder="Acme Agency", key="hub_business")
-        hub_color = st.selectbox(
-            "Brand Colour Scheme",
-            list(_pb_hub._PALETTES.keys()),
-            format_func=lambda k: k.replace("_", " ").title(),
-            key="hub_color",
-        )
-        hub_cta_text = st.text_input("CTA Text", value="Get a Free Consultation", key="hub_cta_text")
-        hub_cta_url = st.text_input("CTA URL", placeholder="https://example.com/contact", key="hub_cta_url")
-
-    with col_hub_right:
-        spoke_topics_input = st.text_area(
-            "Spoke Topics (one per line):",
-            height=150,
-            placeholder="LinkedIn Algorithm 2024: How to Maximise Reach\nExecutive Ghostwriting on LinkedIn\n...",
-            key="hub_spoke_topics",
-        )
-        guide_title_input = st.text_input(
-            "Thought Leadership Guide Title (optional):",
-            placeholder="Ultimate Guide to LinkedIn Marketing",
-            key="hub_guide_title",
-        )
-
-        st.markdown("**Default Spoke Layout:**")
-        spoke_layout = st.selectbox(
-            "Spoke page layout:",
-            list(_pb_hub.LAYOUTS.keys()),
-            format_func=lambda k: f"{_pb_hub.LAYOUTS[k]['icon']} {_pb_hub.LAYOUTS[k]['label']}",
-            index=list(_pb_hub.LAYOUTS.keys()).index("blog_article"),
-            key="spoke_layout",
-        )
-
-    # -- Cluster batch generation -------------------------------------------
-    st.divider()
-    col_gen1, col_gen2 = st.columns(2)
-
-    with col_gen1:
-        if st.button("🔍 Preview Hub & Spoke Prompts", key="btn_hub_spoke"):
-            if not hub_json_input.strip() or not spoke_topics_input.strip():
-                st.error("Please provide both hub page data and spoke topics.")
-            else:
-                try:
-                    hub_data = json.loads(hub_json_input)
-                    spoke_topics = [t.strip() for t in spoke_topics_input.strip().splitlines() if t.strip()]
-                    builder = PromptBuilder()
-
-                    with st.expander("Hub Prompt", expanded=True):
-                        st.code(builder.build_hub_prompt(hub_data), language="markdown")
-
-                    st.subheader(f"Spoke Prompts ({len(spoke_topics)} spokes)")
-                    spoke_prompts = builder.build_spoke_prompts(hub_data, spoke_topics)
-                    for sp in spoke_prompts:
-                        with st.expander(f"Spoke {sp['spoke_number']}: {sp['topic']}"):
-                            st.code(sp["prompt"], language="markdown")
-
-                    if guide_title_input:
-                        with st.expander("Thought Leadership Guide Prompt"):
-                            st.code(
-                                builder.build_thought_leadership_prompt(hub_data, guide_title_input),
-                                language="markdown",
-                            )
-                except json.JSONDecodeError as exc:
-                    st.error(f"Invalid hub page data JSON: {exc}")
-                except ValueError as exc:
-                    st.error(f"Validation error: {exc}")
-
-    with col_gen2:
-        if st.button("⚡ Batch Generate HTML5 Cluster", key="btn_batch_gen_cluster", type="primary"):
-            spoke_lines = [t.strip() for t in spoke_topics_input.strip().splitlines() if t.strip()]
-            if not hub_business or not spoke_lines:
-                st.error("Business name and at least one spoke topic are required.")
-            else:
-                hub_topic = ""
-                hub_keyword = ""
-                if hub_json_input.strip():
-                    try:
-                        hd = json.loads(hub_json_input)
-                        hub_topic = hd.get("topic", "")
-                        hub_keyword = hd.get("primary_keyword", "")
-                    except json.JSONDecodeError:
-                        pass
-                hub_topic = hub_topic or (spoke_lines[0] if spoke_lines else "SEO Services")
-
-                cluster_pages: list[dict] = []
-
-                # Generate hub page
-                hub_config = {
-                    "layout": hub_layout,
-                    "business_name": hub_business,
-                    "service": hub_topic,
-                    "primary_keyword": hub_keyword or hub_topic,
-                    "target_audience": "businesses",
-                    "tone": "Professional",
-                    "color_scheme": hub_color,
-                    "cta_text": hub_cta_text,
-                    "cta_url": hub_cta_url or "#contact",
-                    "sections": ["hero", "features", "benefits", "social_proof", "faq", "cta"],
-                }
-                try:
-                    hub_html = _pb_hub.generate_page(hub_config)
-                    cluster_pages.append({"type": "hub", "topic": hub_topic, "html": hub_html, "config": hub_config})
-                except Exception as exc:
-                    st.error(f"Hub generation failed: {exc}")
-
-                # Generate spoke pages
-                for spoke_topic in spoke_lines:
-                    spoke_config = {
-                        "layout": spoke_layout,
-                        "business_name": hub_business,
-                        "service": spoke_topic,
-                        "primary_keyword": spoke_topic.lower(),
-                        "target_audience": "businesses",
-                        "tone": "Professional",
-                        "color_scheme": hub_color,
-                        "cta_text": hub_cta_text,
-                        "cta_url": hub_cta_url or "#contact",
-                        "sections": ["hero", "features", "benefits", "faq", "cta"],
-                    }
-                    try:
-                        spoke_html = _pb_hub.generate_page(spoke_config)
-                        cluster_pages.append({"type": "spoke", "topic": spoke_topic, "html": spoke_html, "config": spoke_config})
-                    except Exception as exc:
-                        st.warning(f"Spoke '{spoke_topic}' failed: {exc}")
-
-                st.session_state["hub_cluster_pages"] = cluster_pages
-                st.success(f"✅ Generated {len(cluster_pages)} pages in the cluster!")
-
-    # -- Cluster visual diagram + results ------------------------------------
-    cluster_pages = st.session_state.get("hub_cluster_pages", [])
-    if cluster_pages:
-        st.divider()
-        st.markdown('<div class="section-title">🌐 Cluster Diagram</div>', unsafe_allow_html=True)
-
-        hub_pages = [p for p in cluster_pages if p["type"] == "hub"]
-        spoke_pages = [p for p in cluster_pages if p["type"] == "spoke"]
-
-        hub_name = hub_pages[0]["topic"] if hub_pages else "Hub Page"
-        diagram_html = f'<div class="cluster-hub">🏢 HUB: {hub_name}</div>'
-        for i, sp in enumerate(spoke_pages, 1):
-            diagram_html += f'<div class="cluster-spoke">↳ 📝 Spoke {i}: {sp["topic"]}</div>'
-        st.markdown(diagram_html, unsafe_allow_html=True)
-
-        st.divider()
-        st.markdown('<div class="section-title">📦 Generated Pages</div>', unsafe_allow_html=True)
-        for page in cluster_pages:
-            icon = "🏢" if page["type"] == "hub" else "📝"
-            with st.expander(f"{icon} {page['topic']} ({len(page['html']):,} chars)"):
-                st.download_button(
-                    f"⬇️ Download {page['topic']}.html",
-                    data=page["html"],
-                    file_name=f"{page['topic'].lower().replace(' ', '-')}.html",
-                    mime="text/html",
-                    key=f"dl_cluster_{page['topic']}",
-                )
-                if st.button(f"💾 Save to Library", key=f"save_cluster_{page['topic']}"):
-                    pid = db.create_page(
-                        service_type="hub_and_spoke",
-                        topic=page["topic"],
-                        primary_keyword=page["config"].get("primary_keyword", ""),
-                        page_type=page["config"].get("layout", "landing_page"),
-                    )
-                    db.save_content_version(pid, content_html=page["html"], content_markdown="", quality_report={})
-                    st.success(f"Saved to library (ID: {pid})")
-
-        # Deploy entire cluster to WordPress
-        wp_pub_cluster = WordPressPublisher(db)
-        wp_conns_cluster = wp_pub_cluster.list_connections()
-        if wp_conns_cluster:
-            st.divider()
-            conn_opts_cluster = {
-                f"{c.get('site_name') or c['site_url']} (id={c['id']})": c["id"]
-                for c in wp_conns_cluster
-            }
-            sel_conn_cluster = st.selectbox(
-                "Deploy to WordPress site:",
-                list(conn_opts_cluster.keys()),
-                key="cluster_wp_conn",
-            )
-            cluster_start_date = st.date_input("Start date for staggered publishing:", key="cluster_start_date")
-            if st.button("🚀 Deploy Entire Cluster to WordPress (Staggered)", key="btn_deploy_cluster", type="primary"):
-                pages_payload = [
-                    {"page_id": 0, "title": p["topic"], "content": p["html"]}
-                    for p in cluster_pages
-                ]
-                results = wp_pub_cluster.batch_publish_staggered(
-                    pages=pages_payload,
-                    connection_id=conn_opts_cluster[sel_conn_cluster],
-                    start_date=cluster_start_date.isoformat(),
-                    interval_days=1,
-                )
-                for r in results:
-                    if r["success"]:
-                        st.success(f"✅ '{r.get('page_id')}' scheduled for {r.get('scheduled_date', '?')}")
-                    else:
-                        st.error(f"❌ Failed: {r.get('message')}")
-
-    st.markdown("---")
-    st.info(
-        "💡 For full hub-and-spoke generation with LLM calls, use the CLI:\n\n"
-        "```bash\n"
-        "python generator.py hub-and-spoke \\\n"
-        "  --config examples/hub_and_spoke_linkedin_marketing.json \\\n"
-        "  --output-dir output/cluster/ \\\n"
-        "  --openai-key $OPENAI_API_KEY\n"
-        "```"
-    )
-
-# ---------------------------------------------------------------------------
-# Tab 3: Competitor Analysis
-# ---------------------------------------------------------------------------
-
-with tab_competitor:
-    st.header("Competitor Analysis")
-    st.caption(
-        "Analyse competitor pages to identify content gaps, differentiation opportunities, "
-        "and recommended spoke topics."
-    )
-
-    service_topic_input = st.text_input(
-        "Service Topic:", placeholder="e.g. Digital PR Agency", key="ca_service_topic"
-    )
-
-    st.subheader("Competitors")
-    st.caption("Add competitor data. At minimum provide a name and any content you have.")
-
-    num_competitors = st.number_input(
-        "Number of competitors:", min_value=1, max_value=10, value=2, key="ca_num_competitors"
-    )
-
-    competitors: list[dict] = []
-    for i in range(int(num_competitors)):
-        with st.expander(f"Competitor {i + 1}", expanded=(i == 0)):
-            c_name = st.text_input(f"Name", key=f"ca_name_{i}")
-            c_url = st.text_input(f"URL (optional)", key=f"ca_url_{i}")
-            c_content = st.text_area(
-                f"Page content / excerpt (optional)",
-                height=100,
-                key=f"ca_content_{i}",
-            )
-            c_keywords = st.text_input(
-                f"Keywords (comma-separated, optional)",
-                key=f"ca_keywords_{i}",
-            )
-            if c_name:
-                competitors.append({
-                    "name": c_name,
-                    "url": c_url,
-                    "content": c_content,
-                    "keywords": [k.strip() for k in c_keywords.split(",") if k.strip()],
-                })
-
-    our_strengths_input = st.text_area(
-        "Your Strengths (one per line, optional):",
-        height=100,
-        placeholder="Data journalism approach\nJournalist relationships with 200+ outlets",
-        key="ca_our_strengths",
-    )
-
-    if st.button("Run Competitor Analysis", key="btn_competitor_analysis"):
-        if not service_topic_input or not competitors:
-            st.error("Please provide a service topic and at least one competitor.")
-        else:
-            our_strengths = [
-                s.strip()
-                for s in our_strengths_input.strip().splitlines()
-                if s.strip()
-            ]
-            analyzer = CompetitorAnalyzer()
-            report = analyzer.analyze(service_topic_input, competitors, our_strengths)
-
-            col1, col2 = st.columns(2)
-            with col1:
-                st.metric("Competitors Analysed", len(report.competitors))
-                st.metric("Content Gaps Found", len(report.content_gaps))
-            with col2:
-                st.metric("Differentiation Opportunities", len(report.differentiation_opportunities))
-                st.metric("Recommended Spoke Topics", len(report.recommended_spoke_topics))
-
-            st.subheader("Analysis Summary")
-            st.write(report.summary)
-
-            with st.expander("Common Themes Across Competitors"):
-                for t in report.common_themes:
-                    st.markdown(f"- {t}")
-
-            with st.expander("Content Gaps (What Competitors Don't Cover)"):
-                for g in report.content_gaps:
-                    st.markdown(f"- ✅ {g}")
-
-            with st.expander("Differentiation Opportunities"):
-                for o in report.differentiation_opportunities:
-                    st.markdown(f"- 🎯 {o}")
-
-            with st.expander("Unique Positioning Recommendations"):
-                for p in report.unique_positioning:
-                    st.markdown(f"- 💡 {p}")
-
-            with st.expander("Recommended Spoke Topics"):
-                for s in report.recommended_spoke_topics:
-                    st.markdown(f"- 📝 {s}")
-
-    st.markdown("---")
-    st.info(
-        "💡 For CLI usage:\n\n"
-        "```bash\n"
-        "python generator.py competitor-analysis \\\n"
-        "  --config examples/competitor_analysis_digital_pr.json\n"
-        "```"
-    )
-
-# ---------------------------------------------------------------------------
-# Tab 4: Multi-Format Generator
-# ---------------------------------------------------------------------------
-
-with tab_multiformat:
-    st.header("Multi-Format Content Generator")
-    st.caption(
-        "Generate platform-specific content (LinkedIn, Twitter, YouTube, Reddit, Email, HTML, Markdown) "
-        "from a single content source."
-    )
-
-    source_json_input = st.text_area(
-        "Content Source (JSON):",
-        height=200,
-        placeholder='{"topic": "...", "primary_keyword": "...", "key_points": [...], "cta": "..."}',
-        key="mf_source",
-    )
-
-    available_formats = MultiFormatGenerator.supported_formats()
-    selected_formats = st.multiselect(
-        "Formats to generate:",
-        options=available_formats,
-        default=available_formats,
-        key="mf_formats",
-    )
-
-    if st.button("Generate Multi-Format Content", key="btn_multi_format"):
-        if not source_json_input.strip():
-            st.error("Please enter a content source JSON.")
-        elif not selected_formats:
-            st.error("Please select at least one format.")
-        else:
-            try:
-                source = json.loads(source_json_input)
-            except json.JSONDecodeError as exc:
-                st.error(f"Invalid JSON: {exc}")
-            else:
-                gen = MultiFormatGenerator()
-                try:
-                    bundle = gen.generate_all(source, formats=selected_formats)
-                    st.success(f"Generated {len(bundle.outputs)} format(s) for: {bundle.source_topic}")
-
-                    for fmt_name, output in bundle.outputs.items():
-                        with st.expander(f"📄 {fmt_name.upper()} — {output.platform_notes}"):
-                            st.code(output.content, language="html" if fmt_name == "html" else "markdown")
-                            if output.estimated_reach:
-                                st.caption(f"Estimated reach: {output.estimated_reach}")
-                except ValueError as exc:
-                    st.error(f"Generation error: {exc}")
-
-    st.markdown("---")
-    st.info(
-        "💡 For CLI usage:\n\n"
-        "```bash\n"
-        "python generator.py multi-format \\\n"
-        "  --source examples/multi_platform_geo_ai_seo.json \\\n"
-        "  --formats linkedin twitter email \\\n"
-        "  --output-dir output/formats/\n"
-        "```"
-    )
-
-# ---------------------------------------------------------------------------
-# Tab 5: Landing Page Templates
-# ---------------------------------------------------------------------------
-
-with tab_template:
-    st.header("Service Landing Page Templates")
-    st.caption(
-        "Browse and render landing page templates for CrowdCreate services. "
-        "Each template includes H1/H2 structure, trust factors, testimonials, CTAs, and related services."
-    )
-
-    tm = TemplateManager()
-    service_types = tm.list_service_types()
-
-    selected_service = st.selectbox(
-        "Select Service Type:",
-        options=service_types,
-        key="tmpl_service_type",
-    )
-
-    if selected_service:
-        template = tm.get_template(selected_service)
-
-        col_t1, col_t2 = st.columns([2, 1])
-
-        with col_t1:
-            st.subheader(template["h1"])
-            st.write(template["service_description"])
-
-            with st.expander("H2 Structure"):
-                for i, h2 in enumerate(template["h2_sections"], 1):
-                    st.markdown(f"{i}. **{h2}**")
-
-            with st.expander("Trust Factors"):
-                for tf in template["trust_factors"]:
-                    st.markdown(f"✅ {tf}")
-
-            with st.expander("Client Testimonials"):
-                for t in template["testimonials"]:
-                    st.markdown(f'> *"{t["quote"]}"*')
-                    st.caption(f'— {t["author"]}')
-
-        with col_t2:
-            st.subheader("CTAs")
-            st.button(template["cta"]["primary"], key=f"cta_primary_{selected_service}")
-            st.button(template["cta"]["secondary"], key=f"cta_secondary_{selected_service}")
-
-            st.subheader("Related Services")
-            for svc in template["related_services"]:
-                st.markdown(f"→ {svc}")
-
-            st.subheader("Keywords")
-            st.markdown(f"**Primary:** `{template['primary_keyword']}`")
-            st.markdown("**Secondary:**")
-            for kw in template["secondary_keywords"]:
-                st.markdown(f"- `{kw}`")
-
-        with st.expander("HTML Structure Preview"):
-            html_preview = tm.render_html_structure(selected_service)
-            st.code(html_preview, language="html")
-
-        with st.expander("Page Data JSON (for Prompt Generator)"):
-            page_data = tm.render_page_data(selected_service)
-            st.json(page_data)
-
-        # Quality score for the HTML preview
-        with st.expander("📊 Quality Scores for This Template"):
-            scorer = QualityScorer()
-            result = scorer.score(html_preview, page_data)
-            d = result.as_dict()
-
-            col_s1, col_s2, col_s3, col_s4, col_s5 = st.columns(5)
-            col_s1.metric("🏛️ Authority", f"{d['authority']:.0f}/100")
-            col_s2.metric("🧠 Semantic", f"{d['semantic']:.0f}/100")
-            col_s3.metric("🏗️ Structure", f"{d['structure']:.0f}/100")
-            col_s4.metric("🎯 Engagement", f"{d['engagement']:.0f}/100")
-            col_s5.metric("✨ Uniqueness", f"{d['uniqueness']:.0f}/100")
-
-            st.metric("⭐ Overall Quality Score", f"{d['overall']:.1f}/100")
-
-            for dim, notes in d["explanations"].items():
-                with st.expander(f"{dim.capitalize()} Recommendations"):
-                    for note in notes:
-                        st.write(f"• {note}")
-
-        if st.button(
-            f"💾 Save '{template['h1']}' to Page Library",
-            key=f"save_template_{selected_service}",
-        ):
-            pid = db.create_page(
-                service_type=selected_service,
-                topic=template["h1"],
-                primary_keyword=template["primary_keyword"],
-                page_type="landing_page",
-            )
-            db.save_content_version(
-                pid,
-                content_html=html_preview,
-                content_markdown="",
-                quality_report=result.as_dict(),
-            )
-            db.save_quality_scores(pid, d)
-            st.success(f"✅ Saved to Page Library (ID: {pid})")
-
-# ---------------------------------------------------------------------------
-# Tab 6: Page Library (database-backed)
-# ---------------------------------------------------------------------------
+import re as _re
 
 with tab_library:
     st.header("📚 Page Library")
     st.caption(
-        "Manage all generated pages stored in the persistent database. "
-        "Filter, review quality scores, update status, and export content."
+        "Manage all generated pages. Edit HTML inline, update SEO fields, clone, download, or deploy to WordPress."
     )
 
-    # Dashboard stats
+    # Stats bar
     stats = db.get_dashboard_stats()
     c1, c2, c3, c4, c5, c6 = st.columns(6)
     c1.metric("Total Pages", stats["total_pages"])
@@ -1068,10 +494,9 @@ with tab_library:
             key="lib_filter_status",
         )
     with col_f2:
-        tm_lib = TemplateManager()
         filter_service = st.selectbox(
             "Filter by Service Type",
-            ["All"] + tm_lib.list_service_types(),
+            ["All", "html5_page_builder", "hub_and_spoke", "landing_page", "blog_article"],
             key="lib_filter_service",
         )
     with col_f3:
@@ -1092,29 +517,32 @@ with tab_library:
     )
 
     if not pages:
-        st.info("No pages found. Generate some using the Landing Page Templates tab.")
+        st.info("No pages found. Generate some using the ⚡ Page Builder tab.")
     else:
         st.write(f"**{len(pages)} page(s) found**")
+        _wp_pub_lib = WordPressPublisher(db)
+        _wp_conns_lib = _wp_pub_lib.list_connections()
+
         for page in pages:
-            with st.expander(
-                f"[{page['status'].upper()}] {page['topic']} — `{page['primary_keyword']}`",
-                expanded=False,
-            ):
+            version = db.get_latest_version(page["id"])
+            created = page.get("created_at", "")[:10]
+            label = (
+                f"[{page['status'].upper()}] {page['topic']} "
+                f"— `{page['primary_keyword']}` — {created}"
+            )
+            with st.expander(label, expanded=False):
                 col_p1, col_p2, col_p3 = st.columns([2, 1, 1])
 
                 with col_p1:
                     st.write(f"**Service:** {page['service_type']}")
-                    st.write(f"**Created:** {page['created_at'][:10]}")
-                    st.write(f"**Updated:** {page['updated_at'][:10]}")
+                    st.write(f"**Created:** {created}")
 
                 with col_p2:
                     quality = db.get_latest_quality_scores(page["id"])
                     if quality:
                         st.metric("Overall Quality", f"{quality['overall']:.1f}")
-                        st.metric("Authority", f"{quality['authority']:.1f}")
-                        st.metric("Structure", f"{quality['structure']:.1f}")
                     else:
-                        st.info("No quality scores yet.")
+                        st.info("No quality scores.")
 
                 with col_p3:
                     new_status = st.selectbox(
@@ -1129,22 +557,122 @@ with tab_library:
                         db.update_page_status(page["id"], new_status)
                         st.success("Status updated.")
                         st.rerun()
-                    if st.button(
-                        "🗑️ Delete", key=f"lib_delete_{page['id']}", type="secondary"
-                    ):
+                    if st.button("🗑️ Delete", key=f"lib_delete_{page['id']}", type="secondary"):
                         db.delete_page(page["id"])
                         st.warning("Page deleted.")
                         st.rerun()
 
-                # Show latest content version
-                version = db.get_latest_version(page["id"])
                 if version:
+                    st.markdown("---")
                     st.write(f"**Version {version['version']}** · {version['word_count']} words")
-                    with st.expander("View HTML"):
-                        st.code(version["content_html"], language="html")
-                    if version["content_markdown"]:
-                        with st.expander("View Markdown"):
-                            st.code(version["content_markdown"], language="markdown")
+
+                    # ── Inline HTML Editor ────────────────────────────────
+                    edited_html = st.text_area(
+                        "Edit HTML",
+                        value=version["content_html"],
+                        height=400,
+                        key=f"edit_html_{page['id']}",
+                    )
+
+                    # ── Parse SEO fields from HTML ────────────────────────
+                    _title_match = _re.search(r"<title[^>]*>(.*?)</title>", version["content_html"], _re.IGNORECASE | _re.DOTALL)
+                    _meta_match = _re.search(r'<meta\s+name=["\']description["\']\s+content=["\'](.*?)["\']', version["content_html"], _re.IGNORECASE)
+                    _h1_match = _re.search(r"<h1[^>]*>(.*?)</h1>", version["content_html"], _re.IGNORECASE | _re.DOTALL)
+
+                    col_seo1, col_seo2 = st.columns(2)
+                    with col_seo1:
+                        edit_title = st.text_input(
+                            "Page Title",
+                            value=_title_match.group(1).strip() if _title_match else page.get("topic", ""),
+                            key=f"edit_title_{page['id']}",
+                        )
+                        edit_h1 = st.text_input(
+                            "H1",
+                            value=_re.sub(r"<[^>]+>", "", _h1_match.group(1)).strip() if _h1_match else "",
+                            key=f"edit_h1_{page['id']}",
+                        )
+                    with col_seo2:
+                        edit_meta = st.text_area(
+                            "Meta Description",
+                            value=_meta_match.group(1).strip() if _meta_match else "",
+                            height=80,
+                            key=f"edit_meta_{page['id']}",
+                        )
+
+                    col_btn1, col_btn2, col_btn3 = st.columns(3)
+
+                    # ── Save Edited Version ───────────────────────────────
+                    with col_btn1:
+                        if st.button("💾 Save Edited Version", key=f"lib_save_edit_{page['id']}"):
+                            # Apply title/meta/h1 edits back into the HTML
+                            final_html = edited_html
+                            if edit_title:
+                                final_html = _re.sub(
+                                    r"(<title[^>]*>)(.*?)(</title>)",
+                                    lambda m: m.group(1) + edit_title + m.group(3),
+                                    final_html, flags=_re.IGNORECASE | _re.DOTALL
+                                )
+                            db.save_content_version(
+                                page["id"],
+                                content_html=final_html,
+                                content_markdown=version.get("content_markdown", ""),
+                                quality_report={},
+                            )
+                            st.success("✅ New version saved.")
+                            st.rerun()
+
+                    # ── Clone Page ────────────────────────────────────────
+                    with col_btn2:
+                        if st.button("📋 Clone Page", key=f"lib_clone_{page['id']}"):
+                            new_pid = db.create_page(
+                                service_type=page["service_type"],
+                                topic=page["topic"] + " (Copy)",
+                                primary_keyword=page["primary_keyword"],
+                                page_type=page.get("page_type", "landing_page"),
+                            )
+                            db.save_content_version(
+                                new_pid,
+                                content_html=version["content_html"],
+                                content_markdown=version.get("content_markdown", ""),
+                                quality_report={},
+                            )
+                            st.success(f"✅ Cloned as new page (ID: {new_pid})")
+                            st.rerun()
+
+                    # ── Download HTML ─────────────────────────────────────
+                    with col_btn3:
+                        st.download_button(
+                            label="⬇️ Download HTML",
+                            data=version["content_html"],
+                            file_name=f"{page['topic'].lower().replace(' ', '-')}.html",
+                            mime="text/html",
+                            key=f"lib_dl_{page['id']}",
+                        )
+
+                    # ── Quick Deploy to WordPress ─────────────────────────
+                    if _wp_conns_lib:
+                        st.markdown("---")
+                        _lib_conn_opts = {
+                            f"{c.get('site_name') or c['site_url']} (id={c['id']})": c["id"]
+                            for c in _wp_conns_lib
+                        }
+                        _lib_sel_conn = st.selectbox(
+                            "Quick Deploy to:",
+                            list(_lib_conn_opts.keys()),
+                            key=f"lib_wp_conn_{page['id']}",
+                        )
+                        if st.button("🚀 Quick Deploy to WordPress", key=f"lib_deploy_{page['id']}"):
+                            _result = _wp_pub_lib.publish_page(
+                                page_id=page["id"],
+                                connection_id=_lib_conn_opts[_lib_sel_conn],
+                                title=page.get("topic", "Untitled"),
+                                content=version["content_html"],
+                                status="draft",
+                            )
+                            if _result["success"]:
+                                st.success(f"✅ Deployed! {_result.get('post_url', '')}")
+                            else:
+                                st.error(f"❌ Deploy failed: {_result.get('message')}")
 
     # Bulk export section
     st.markdown("---")
@@ -1191,117 +719,454 @@ with tab_library:
                 )
 
 # ---------------------------------------------------------------------------
-# Tab 7: Staging Review — Client approval workflow
+# Tab 3: Staging & Editor — merged tab
 # ---------------------------------------------------------------------------
 
-with tab_staging:
-    st.header("🎭 Staging Review")
-    st.caption(
-        "Review generated pages before deployment. Approve or reject pages, "
-        "add client feedback, and track revision history."
-    )
+with tab_staging_editor:
+    sub_staging, sub_editor = st.tabs(["🎭 Staging Review", "✏️ Content Editor"])
 
-    if "staging_env" not in st.session_state:
-        st.session_state.staging_env = StagingEnvironment(db)
-        st.session_state.staging_review_mgr = StagingReviewManager(db)
-
-    staging_env: StagingEnvironment = st.session_state.staging_env
-    staging_review_mgr: StagingReviewManager = st.session_state.staging_review_mgr
-
-    # -- Batch selector -------------------------------------------------------
-    batches = staging_review_mgr.list_batches()
-    if not batches:
-        st.info("No staging batches found. Create a batch first via the Hub & Spoke tab.")
-    else:
-        batch_options = {f"{b['name']} (id:{b['id']})": b["id"] for b in batches}
-        selected_label = st.selectbox("Select Batch", list(batch_options.keys()))
-        selected_batch_id = batch_options[selected_label]
-
-        gallery = staging_env.get_batch_gallery(selected_batch_id)
-        batch_meta = gallery["batch"]
-        pages = gallery["pages"]
-
-        if batch_meta:
-            col1, col2, col3 = st.columns(3)
-            col1.metric("Total Pages", batch_meta.get("total_pages", len(pages)))
-            col2.metric("Approved", batch_meta.get("pages_approved", 0))
-            col3.metric("Draft", batch_meta.get("pages_draft", 0))
-
-        st.divider()
-
-        # -- Status filter ----------------------------------------------------
-        status_filter = st.radio(
-            "Filter by Status",
-            ["All", "draft", "approved", "needs_revision", "rejected", "deployed"],
-            horizontal=True,
-        )
-        filtered_pages = (
-            pages
-            if status_filter == "All"
-            else [p for p in pages if p.get("status") == status_filter]
+    # ── Sub-tab 1: Staging Review ──────────────────────────────────────────
+    with sub_staging:
+        st.header("🎭 Staging Review")
+        st.caption(
+            "Review generated pages before deployment. Approve or reject pages, "
+            "add client feedback, and track revision history."
         )
 
-        # -- Page gallery -------------------------------------------------
-        if not filtered_pages:
-            st.info(f"No pages with status '{status_filter}'.")
+        if "staging_env" not in st.session_state:
+            st.session_state.staging_env = StagingEnvironment(db)
+            st.session_state.staging_review_mgr = StagingReviewManager(db)
+
+        staging_env: StagingEnvironment = st.session_state.staging_env
+        staging_review_mgr: StagingReviewManager = st.session_state.staging_review_mgr
+
+        # -- Batch selector ---------------------------------------------------
+        batches = staging_review_mgr.list_batches()
+        if not batches:
+            st.info("No staging batches found. Create a batch first via the Agency Dashboard tab.")
         else:
-            # Bulk action controls
-            all_ids = [p["id"] for p in filtered_pages if p.get("id")]
-            st.write(f"**{len(filtered_pages)} page(s) shown**")
-            col_a, col_r, _ = st.columns([1, 1, 4])
-            if col_a.button("✅ Approve All Visible"):
-                count = staging_env.bulk_approve(all_ids, reviewer="manager")
-                st.success(f"Approved {count} pages.")
-                st.rerun()
-            if col_r.button("❌ Reject All Visible"):
-                count = staging_env.bulk_reject(all_ids, reviewer="manager")
-                st.warning(f"Rejected {count} pages.")
-                st.rerun()
+            batch_options = {f"{b['name']} (id:{b['id']})": b["id"] for b in batches}
+            selected_label = st.selectbox("Select Batch", list(batch_options.keys()))
+            selected_batch_id = batch_options[selected_label]
 
-            for page in filtered_pages:
-                with st.expander(
-                    f"📄 {page.get('title', 'Untitled')} — {page.get('status', '?')}"
-                ):
-                    st.write(f"**Slug:** `{page.get('slug')}`")
-                    st.write(f"**Keyword:** {page.get('primary_keyword', '—')}")
-                    st.write(f"**Word Count:** {page.get('word_count', 0)}")
-                    st.write(f"**Template:** {page.get('assigned_template', '—')}")
-                    if page.get("meta_description"):
-                        st.write(f"**Meta:** {page['meta_description']}")
+            gallery = staging_env.get_batch_gallery(selected_batch_id)
+            batch_meta = gallery["batch"]
+            pages = gallery["pages"]
 
-                    # Individual approve/reject
-                    c1, c2 = st.columns(2)
-                    pid = page.get("id")
-                    if pid:
-                        if c1.button("✅ Approve", key=f"approve_{pid}"):
-                            staging_env.bulk_approve([pid], reviewer="manager")
+            if batch_meta:
+                col1, col2, col3 = st.columns(3)
+                col1.metric("Total Pages", batch_meta.get("total_pages", len(pages)))
+                col2.metric("Approved", batch_meta.get("pages_approved", 0))
+                col3.metric("Draft", batch_meta.get("pages_draft", 0))
+
+            st.divider()
+
+            # -- Status filter ------------------------------------------------
+            status_filter = st.radio(
+                "Filter by Status",
+                ["All", "draft", "approved", "needs_revision", "rejected", "deployed"],
+                horizontal=True,
+            )
+            filtered_pages = (
+                pages
+                if status_filter == "All"
+                else [p for p in pages if p.get("status") == status_filter]
+            )
+
+            # -- Page gallery -------------------------------------------------
+            if not filtered_pages:
+                st.info(f"No pages with status '{status_filter}'.")
+            else:
+                all_ids = [p["id"] for p in filtered_pages if p.get("id")]
+                st.write(f"**{len(filtered_pages)} page(s) shown**")
+                col_a, col_r, _ = st.columns([1, 1, 4])
+                if col_a.button("✅ Approve All Visible"):
+                    count = staging_env.bulk_approve(all_ids, reviewer="manager")
+                    st.success(f"Approved {count} pages.")
+                    st.rerun()
+                if col_r.button("❌ Reject All Visible"):
+                    count = staging_env.bulk_reject(all_ids, reviewer="manager")
+                    st.warning(f"Rejected {count} pages.")
+                    st.rerun()
+
+                for page in filtered_pages:
+                    with st.expander(
+                        f"📄 {page.get('title', 'Untitled')} — {page.get('status', '?')}"
+                    ):
+                        st.write(f"**Slug:** `{page.get('slug')}`")
+                        st.write(f"**Keyword:** {page.get('primary_keyword', '—')}")
+                        st.write(f"**Word Count:** {page.get('word_count', 0)}")
+                        st.write(f"**Template:** {page.get('assigned_template', '—')}")
+                        if page.get("meta_description"):
+                            st.write(f"**Meta:** {page['meta_description']}")
+
+                        c1, c2 = st.columns(2)
+                        pid = page.get("id")
+                        if pid:
+                            if c1.button("✅ Approve", key=f"approve_{pid}"):
+                                staging_env.bulk_approve([pid], reviewer="manager")
+                                st.rerun()
+                            if c2.button("❌ Reject", key=f"reject_{pid}"):
+                                staging_env.bulk_reject([pid], reviewer="manager")
+                                st.rerun()
+
+                            comment = st.text_input(
+                                "Add comment", key=f"comment_{pid}", placeholder="Enter feedback…"
+                            )
+                            if st.button("💬 Save Comment", key=f"save_comment_{pid}") and comment:
+                                staging_env.add_page_comment(pid, comment, reviewer="client")
+                                st.success("Comment saved.")
+
+            st.divider()
+
+            readiness = staging_env.get_deploy_readiness(selected_batch_id)
+            if readiness["ready"]:
+                st.success(
+                    f"✅ All {readiness['approved_count']} pages approved — "
+                    "ready for deployment!"
+                )
+            else:
+                st.warning(
+                    f"⚠️ {readiness['approved_count']}/{readiness['total_count']} "
+                    f"pages approved. {len(readiness['blocked_pages'])} page(s) blocked."
+                )
+
+    # ── Sub-tab 2: Content Editor ──────────────────────────────────────────
+    with sub_editor:
+        st.header("✏️ Content Editor")
+        st.caption("Edit and refine page content with real-time quality scoring, SEO preview, and version history.")
+
+        editor = ContentEditor(db)
+
+        pages = db.list_pages()
+        if not pages:
+            st.info("No pages in the library yet. Create some in the ⚡ Page Builder tab.")
+        else:
+            page_options = {f"[{p['id']}] {p['topic']} ({p.get('primary_keyword','')})": p["id"] for p in pages}
+            selected_page_label = st.selectbox("Select a page to edit:", list(page_options.keys()), key="editor_page_select")
+            selected_page_id = page_options[selected_page_label]
+            selected_page = db.get_page(selected_page_id)
+
+            latest = editor.get_latest_version(selected_page_id)
+            latest_html = (latest["content_html"] if latest else "") or ""
+
+            st.divider()
+
+            # ── A. Edit mode toggle ──────────────────────────────────────
+            edit_mode = st.radio("Edit mode:", ["HTML Source", "Markdown"], horizontal=True, key="editor_mode")
+
+            col_editor, col_quality = st.columns([2, 1])
+
+            with col_editor:
+                if edit_mode == "HTML Source":
+                    st.subheader("🖥️ HTML Source Editor")
+                    new_html_content = st.text_area(
+                        "HTML Source",
+                        value=latest_html,
+                        height=500,
+                        key="editor_html_source",
+                    )
+                    if st.button("💾 Save HTML Version", key="btn_save_html_version"):
+                        if not new_html_content.strip():
+                            st.error("Content cannot be empty.")
+                        else:
+                            db.save_content_version(
+                                selected_page_id,
+                                content_html=new_html_content,
+                                content_markdown=latest.get("content_markdown", "") if latest else "",
+                                quality_report={},
+                            )
+                            st.success("✅ HTML version saved.")
                             st.rerun()
-                        if c2.button("❌ Reject", key=f"reject_{pid}"):
-                            staging_env.bulk_reject([pid], reviewer="manager")
-                            st.rerun()
+                else:
+                    st.subheader("📝 Edit Content (Markdown)")
+                    existing_content = latest["content_markdown"] if latest else ""
 
-                        # Comment box
-                        comment = st.text_input(
-                            "Add comment", key=f"comment_{pid}", placeholder="Enter feedback…"
+                    new_title = st.text_input(
+                        "Page Title",
+                        value=selected_page.get("topic", "") if selected_page else "",
+                        key="editor_title",
+                    )
+                    new_h1 = st.text_input(
+                        "H1 Heading",
+                        value=selected_page.get("topic", "") if selected_page else "",
+                        key="editor_h1",
+                    )
+                    new_meta = st.text_area(
+                        "Meta Description",
+                        value="",
+                        height=80,
+                        key="editor_meta",
+                        placeholder="150-160 characters for best results",
+                    )
+                    new_content = st.text_area(
+                        "Content (Markdown)",
+                        value=existing_content,
+                        height=400,
+                        key="editor_content",
+                    )
+                    version_notes = st.text_input(
+                        "Version Notes (what changed?)",
+                        placeholder="e.g. Fixed typos, added statistics",
+                        key="editor_version_notes",
+                    )
+                    edited_by = st.text_input("Your name / initials", key="editor_edited_by")
+
+                    save_col, kw_col = st.columns(2)
+                    with save_col:
+                        if st.button("💾 Save Version", key="btn_save_version"):
+                            if not new_content.strip():
+                                st.error("Content cannot be empty.")
+                            else:
+                                result = editor.save_edit(
+                                    selected_page_id,
+                                    content_markdown=new_content,
+                                    version_notes=version_notes,
+                                    edited_by=edited_by,
+                                )
+                                st.success(result["message"])
+                                st.metric("Word Count", result["word_count"])
+
+                    with kw_col:
+                        if new_content.strip():
+                            primary_kw = selected_page.get("primary_keyword", "") if selected_page else ""
+                            if primary_kw:
+                                density = editor.keyword_density(new_content, primary_kw)
+                                color = "green" if 1.0 <= density <= 2.5 else "orange"
+                                st.markdown(
+                                    f"**Keyword density** for *{primary_kw}*: "
+                                    f"<span style='color:{color};font-weight:bold'>{density:.2f}%</span> "
+                                    f"(target: 1.0–2.5%)",
+                                    unsafe_allow_html=True,
+                                )
+
+            with col_quality:
+                st.subheader("📊 Quality Score")
+                _content_for_score = new_content if edit_mode == "Markdown" else ""
+                if _content_for_score.strip():
+                    live_scores = editor.score_content(
+                        _content_for_score,
+                        {"primary_keyword": selected_page.get("primary_keyword", "")} if selected_page else {},
+                    )
+                    overall = live_scores.get("overall", 0)
+                    score_color = "🟢" if overall >= 75 else "🟡" if overall >= 50 else "🔴"
+                    st.metric("Overall", f"{score_color} {overall:.1f} / 100")
+                    for dim in ("authority", "semantic", "structure", "engagement", "uniqueness"):
+                        st.metric(dim.capitalize(), f"{live_scores.get(dim, 0):.1f}")
+                else:
+                    st.info("Switch to Markdown mode and type to see live quality scores.")
+
+                st.divider()
+                st.subheader("🔍 SEO Preview")
+                _title_val = new_title if edit_mode == "Markdown" else (selected_page.get("topic", "") if selected_page else "")
+                _meta_val = new_meta if edit_mode == "Markdown" else ""
+                if _title_val or _meta_val:
+                    preview = editor.build_seo_preview(_title_val, _meta_val)
+                    st.markdown(
+                        f"""
+                        <div style="border:1px solid #ddd;padding:12px;border-radius:6px;background:#fff">
+                          <p style="color:#1a0dab;font-size:18px;margin:0">{preview['display_title']}</p>
+                          <p style="color:#006621;font-size:13px;margin:2px 0">{preview['display_url']}</p>
+                          <p style="color:#545454;font-size:14px;margin:4px 0">{preview['display_description']}</p>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+                    t_ok = "✅" if preview["title_ok"] else "⚠️"
+                    d_ok = "✅" if preview["desc_ok"] else "⚠️"
+                    st.caption(
+                        f"{t_ok} Title: {preview['title_length']} chars  "
+                        f"{d_ok} Meta: {preview['desc_length']} chars"
+                    )
+
+            st.divider()
+
+            # ── B. SEO Metadata Panel ────────────────────────────────────
+            with st.expander("🔖 SEO Metadata & Schema", expanded=False):
+                import re as _re_editor
+                import json as _json_editor
+
+                _title_m = _re_editor.search(r"<title[^>]*>(.*?)</title>", latest_html, _re_editor.IGNORECASE | _re_editor.DOTALL)
+                _meta_m = _re_editor.search(r'<meta\s+name=["\']description["\']\s+content=["\'](.*?)["\']', latest_html, _re_editor.IGNORECASE)
+
+                seo_title = st.text_input(
+                    "Meta Title",
+                    value=_title_m.group(1).strip() if _title_m else (selected_page.get("topic", "") if selected_page else ""),
+                    max_chars=60,
+                    key="seo_meta_title",
+                    help="Recommended: 50-60 characters",
+                )
+                seo_title_len = len(seo_title)
+                st.caption(f"{seo_title_len}/60 characters {'✅' if seo_title_len <= 60 else '⚠️ Too long'}")
+
+                seo_desc = st.text_area(
+                    "Meta Description",
+                    value=_meta_m.group(1).strip() if _meta_m else "",
+                    height=80,
+                    key="seo_meta_desc",
+                )
+                seo_desc_len = len(seo_desc)
+                st.caption(f"{seo_desc_len}/160 characters {'✅' if seo_desc_len <= 160 else '⚠️ Too long'}")
+
+                schema_type = st.selectbox(
+                    "Schema Markup Type",
+                    ["Service", "Article", "Product", "LocalBusiness", "FAQPage"],
+                    key="seo_schema_type",
+                )
+
+                # Auto-generate JSON-LD
+                _schema_map = {
+                    "Service": {"@type": "Service", "name": seo_title, "description": seo_desc},
+                    "Article": {"@type": "Article", "headline": seo_title, "description": seo_desc},
+                    "Product": {"@type": "Product", "name": seo_title, "description": seo_desc},
+                    "LocalBusiness": {"@type": "LocalBusiness", "name": seo_title, "description": seo_desc},
+                    "FAQPage": {"@type": "FAQPage", "name": seo_title, "description": seo_desc},
+                }
+                _json_ld = {"@context": "https://schema.org"}
+                _json_ld.update(_schema_map.get(schema_type, {}))
+                schema_code = _json_editor.dumps(_json_ld, indent=2)
+                st.code(f'<script type="application/ld+json">\n{schema_code}\n</script>', language="html")
+
+                if st.button("📥 Insert Schema into HTML", key="btn_insert_schema"):
+                    if not latest_html:
+                        st.error("No HTML content to insert into.")
+                    else:
+                        script_tag = f'\n<script type="application/ld+json">\n{schema_code}\n</script>'
+                        updated_html = _re_editor.sub(
+                            r"(</head>)", script_tag + r"\1",
+                            latest_html, flags=_re_editor.IGNORECASE
                         )
-                        if st.button("💬 Save Comment", key=f"save_comment_{pid}") and comment:
-                            staging_env.add_page_comment(pid, comment, reviewer="client")
-                            st.success("Comment saved.")
+                        db.save_content_version(
+                            selected_page_id,
+                            content_html=updated_html,
+                            content_markdown=latest.get("content_markdown", "") if latest else "",
+                            quality_report={},
+                        )
+                        st.success("✅ Schema JSON-LD inserted into HTML and saved as new version.")
+                        st.rerun()
 
-        st.divider()
+            # ── C. Internal Links Panel ──────────────────────────────────
+            with st.expander("🔗 Internal Links", expanded=False):
+                internal_links_input = st.text_area(
+                    "Internal Links to Insert",
+                    placeholder="One URL per line, e.g.:\nhttps://site.com/service-a\nhttps://site.com/about",
+                    height=120,
+                    key="internal_links_input",
+                )
+                anchor_pattern = st.text_input(
+                    "Anchor text pattern (optional)",
+                    placeholder="e.g. learn more about {keyword}",
+                    key="anchor_text_pattern",
+                )
 
-        # -- Deployment readiness --------------------------------------------
-        readiness = staging_env.get_deploy_readiness(selected_batch_id)
-        if readiness["ready"]:
-            st.success(
-                f"✅ All {readiness['approved_count']} pages approved — "
-                "ready for deployment!"
-            )
-        else:
-            st.warning(
-                f"⚠️ {readiness['approved_count']}/{readiness['total_count']} "
-                f"pages approved. {len(readiness['blocked_pages'])} page(s) blocked."
-            )
+                st.markdown("**Pages in library (potential link targets):**")
+                _lib_pages = db.list_pages()
+                if _lib_pages:
+                    for _lp in _lib_pages[:10]:
+                        st.caption(f"• {_lp['topic']} — `{_lp['primary_keyword']}`")
+                else:
+                    st.caption("No pages in library yet.")
+
+                if st.button("🔍 Suggest Internal Links", key="btn_suggest_links"):
+                    if not latest_html:
+                        st.warning("No HTML content loaded for this page.")
+                    elif not internal_links_input.strip():
+                        st.warning("Enter at least one URL to suggest link placements.")
+                    else:
+                        import re as _re_links
+                        _urls = [u.strip() for u in internal_links_input.strip().splitlines() if u.strip()]
+                        _suggestions = []
+                        for _url in _urls:
+                            _domain_part = _url.split("/")[-1].replace("-", " ").replace("_", " ").title()
+                            _kw_search = anchor_pattern.replace("{keyword}", _domain_part) if anchor_pattern else _domain_part
+                            _matches = list(_re_links.finditer(_re_links.escape(_kw_search), latest_html, _re_links.IGNORECASE))
+                            _suggestions.append({
+                                "url": _url,
+                                "keyword": _kw_search,
+                                "occurrences": len(_matches),
+                            })
+                        for _s in _suggestions:
+                            if _s["occurrences"] > 0:
+                                st.success(f"✅ Found **{_s['occurrences']}** occurrence(s) of '{_s['keyword']}' — link to: {_s['url']}")
+                            else:
+                                st.info(f"ℹ️ No match found for '{_s['keyword']}' in this page's HTML.")
+
+            # ── D. WordPress Direct Push Panel ───────────────────────────
+            st.markdown("---")
+            st.markdown("### 🚀 Push to WordPress as Draft")
+            _wp_pub_editor = WordPressPublisher(db)
+            _wp_conns_editor = _wp_pub_editor.list_connections()
+            if not _wp_conns_editor:
+                st.info("Add a WordPress connection in the **🚀 WordPress Publisher** tab.")
+            else:
+                _editor_conn_opts = {
+                    f"{c.get('site_name') or c['site_url']} (id={c['id']})": c["id"]
+                    for c in _wp_conns_editor
+                }
+                _editor_sel_conn = st.selectbox(
+                    "Target site:",
+                    list(_editor_conn_opts.keys()),
+                    key="editor_wp_conn",
+                )
+                _editor_meta_title = st.text_input(
+                    "Meta title override (optional)",
+                    value=selected_page.get("topic", "") if selected_page else "",
+                    key="editor_wp_meta_title",
+                )
+                _editor_meta_desc = st.text_area(
+                    "Meta description override (optional)",
+                    height=60,
+                    key="editor_wp_meta_desc",
+                )
+                if st.button("🚀 Push to WordPress as Draft", type="primary", key="btn_editor_push_wp"):
+                    _push_html = latest_html
+                    _push_result = _wp_pub_editor.publish_page(
+                        page_id=selected_page_id,
+                        connection_id=_editor_conn_opts[_editor_sel_conn],
+                        title=_editor_meta_title or (selected_page.get("topic", "Page") if selected_page else "Page"),
+                        content=_push_html,
+                        status="draft",
+                    )
+                    if _push_result["success"]:
+                        st.success(f"✅ Pushed to WordPress as draft! {_push_result.get('post_url', '')}")
+                    else:
+                        st.error(f"❌ Push failed: {_push_result.get('message')}")
+
+            st.divider()
+
+            # Version history
+            st.subheader("🕐 Version History")
+            versions = editor.list_versions(selected_page_id)
+            if not versions:
+                st.info("No saved versions yet.")
+            else:
+                for v in reversed(versions):
+                    with st.expander(
+                        f"v{v['version']} — {v['word_count']} words — "
+                        f"{v.get('edited_by') or 'unknown'} — {v.get('edited_at', v['created_at'])[:10]}"
+                    ):
+                        st.markdown(f"**Notes:** {v.get('version_notes') or '—'}")
+                        st.text_area("Content", value=v["content_markdown"], height=200, disabled=True,
+                                     key=f"ver_content_{v['id']}")
+
+                if len(versions) >= 2:
+                    st.subheader("🔄 Compare Versions")
+                    v_nums = [v["version"] for v in versions]
+                    c1, c2 = st.columns(2)
+                    va = c1.selectbox("Version A", v_nums, index=0, key="compare_va")
+                    vb = c2.selectbox("Version B", v_nums, index=len(v_nums) - 1, key="compare_vb")
+                    if st.button("Compare", key="btn_compare"):
+                        if va == vb:
+                            st.warning("Select two different versions to compare.")
+                        else:
+                            comp = editor.compare_versions(selected_page_id, va, vb)
+                            st.metric("Word count delta", comp["word_count_delta"],
+                                      delta=comp["word_count_delta"])
+                            if comp["diff"]:
+                                st.code(comp["diff"], language="diff")
+                            else:
+                                st.info("No textual differences found.")
+
 
 
 # ---------------------------------------------------------------------------
@@ -1566,167 +1431,6 @@ with tab_agency:
                 f"{client.get('email', '—')} | {client.get('status', 'active')}"
             )
 
-# ===========================================================================
-# Tab: Content Editor
-# ===========================================================================
-
-with tab_editor:
-    st.header("✏️ Content Editor")
-    st.caption("Edit and refine page content with real-time quality scoring, SEO preview, and version history.")
-
-    editor = ContentEditor(db)
-
-    # -- Page selector --------------------------------------------------------
-    pages = db.list_pages()
-    if not pages:
-        st.info("No pages in the library yet. Create some in the Landing Page Templates tab.")
-    else:
-        page_options = {f"[{p['id']}] {p['topic']} ({p.get('primary_keyword','')})": p["id"] for p in pages}
-        selected_page_label = st.selectbox("Select a page to edit:", list(page_options.keys()), key="editor_page_select")
-        selected_page_id = page_options[selected_page_label]
-        selected_page = db.get_page(selected_page_id)
-
-        st.divider()
-
-        # Split pane: editor left, quality score right
-        col_editor, col_quality = st.columns([2, 1])
-
-        with col_editor:
-            st.subheader("📝 Edit Content")
-
-            latest = editor.get_latest_version(selected_page_id)
-            existing_content = latest["content_markdown"] if latest else ""
-
-            new_title = st.text_input(
-                "Page Title",
-                value=selected_page.get("topic", "") if selected_page else "",
-                key="editor_title",
-            )
-            new_h1 = st.text_input(
-                "H1 Heading",
-                value=selected_page.get("topic", "") if selected_page else "",
-                key="editor_h1",
-            )
-            new_meta = st.text_area(
-                "Meta Description",
-                value="",
-                height=80,
-                key="editor_meta",
-                placeholder="150-160 characters for best results",
-            )
-            new_content = st.text_area(
-                "Content (Markdown)",
-                value=existing_content,
-                height=400,
-                key="editor_content",
-            )
-            version_notes = st.text_input(
-                "Version Notes (what changed?)",
-                placeholder="e.g. Fixed typos, added statistics",
-                key="editor_version_notes",
-            )
-            edited_by = st.text_input("Your name / initials", key="editor_edited_by")
-
-            save_col, kw_col = st.columns(2)
-            with save_col:
-                if st.button("💾 Save Version", key="btn_save_version"):
-                    if not new_content.strip():
-                        st.error("Content cannot be empty.")
-                    else:
-                        result = editor.save_edit(
-                            selected_page_id,
-                            content_markdown=new_content,
-                            version_notes=version_notes,
-                            edited_by=edited_by,
-                        )
-                        st.success(result["message"])
-                        st.metric("Word Count", result["word_count"])
-
-            with kw_col:
-                if new_content.strip():
-                    primary_kw = selected_page.get("primary_keyword", "") if selected_page else ""
-                    if primary_kw:
-                        density = editor.keyword_density(new_content, primary_kw)
-                        color = "green" if 1.0 <= density <= 2.5 else "orange"
-                        st.markdown(
-                            f"**Keyword density** for *{primary_kw}*: "
-                            f"<span style='color:{color};font-weight:bold'>{density:.2f}%</span> "
-                            f"(target: 1.0–2.5%)",
-                            unsafe_allow_html=True,
-                        )
-
-        with col_quality:
-            st.subheader("📊 Quality Score")
-            if new_content.strip():
-                live_scores = editor.score_content(
-                    new_content,
-                    {"primary_keyword": selected_page.get("primary_keyword", "")} if selected_page else {},
-                )
-                overall = live_scores.get("overall", 0)
-                score_color = "🟢" if overall >= 75 else "🟡" if overall >= 50 else "🔴"
-                st.metric("Overall", f"{score_color} {overall:.1f} / 100")
-                for dim in ("authority", "semantic", "structure", "engagement", "uniqueness"):
-                    st.metric(dim.capitalize(), f"{live_scores.get(dim, 0):.1f}")
-            else:
-                st.info("Start typing to see live quality scores.")
-
-            st.divider()
-            st.subheader("🔍 SEO Preview")
-            if new_title or new_meta:
-                preview = editor.build_seo_preview(new_title, new_meta)
-                st.markdown(
-                    f"""
-                    <div style="border:1px solid #ddd;padding:12px;border-radius:6px;background:#fff">
-                      <p style="color:#1a0dab;font-size:18px;margin:0">{preview['display_title']}</p>
-                      <p style="color:#006621;font-size:13px;margin:2px 0">{preview['display_url']}</p>
-                      <p style="color:#545454;font-size:14px;margin:4px 0">{preview['display_description']}</p>
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
-                t_ok = "✅" if preview["title_ok"] else "⚠️"
-                d_ok = "✅" if preview["desc_ok"] else "⚠️"
-                st.caption(
-                    f"{t_ok} Title: {preview['title_length']} chars  "
-                    f"{d_ok} Meta: {preview['desc_length']} chars"
-                )
-
-        st.divider()
-
-        # Version history
-        st.subheader("🕐 Version History")
-        versions = editor.list_versions(selected_page_id)
-        if not versions:
-            st.info("No saved versions yet.")
-        else:
-            for v in reversed(versions):
-                with st.expander(
-                    f"v{v['version']} — {v['word_count']} words — "
-                    f"{v.get('edited_by') or 'unknown'} — {v.get('edited_at', v['created_at'])[:10]}"
-                ):
-                    st.markdown(f"**Notes:** {v.get('version_notes') or '—'}")
-                    st.text_area("Content", value=v["content_markdown"], height=200, disabled=True,
-                                 key=f"ver_content_{v['id']}")
-
-            # Side-by-side comparison
-            if len(versions) >= 2:
-                st.subheader("🔄 Compare Versions")
-                v_nums = [v["version"] for v in versions]
-                c1, c2 = st.columns(2)
-                va = c1.selectbox("Version A", v_nums, index=0, key="compare_va")
-                vb = c2.selectbox("Version B", v_nums, index=len(v_nums) - 1, key="compare_vb")
-                if st.button("Compare", key="btn_compare"):
-                    if va == vb:
-                        st.warning("Select two different versions to compare.")
-                    else:
-                        comp = editor.compare_versions(selected_page_id, va, vb)
-                        st.metric("Word count delta", comp["word_count_delta"],
-                                  delta=comp["word_count_delta"])
-                        if comp["diff"]:
-                            st.code(comp["diff"], language="diff")
-                        else:
-                            st.info("No textual differences found.")
-
 
 # ===========================================================================
 # Tab: WordPress Publisher
@@ -1735,6 +1439,23 @@ with tab_editor:
 with tab_wp:
     st.header("🚀 WordPress Publisher")
     st.caption("Connect WordPress sites and publish pages with one click. Test connections, manage categories, and schedule publishing.")
+
+    with st.expander("📖 How to Set Up WordPress Application Passwords", expanded=False):
+        st.markdown("""
+**Step 1:** Log in to your WordPress admin panel (`yoursite.com/wp-admin`)
+
+**Step 2:** Go to **Users → Profile** (or Users → All Users → your username)
+
+**Step 3:** Scroll down to the **"Application Passwords"** section
+
+**Step 4:** Enter a name (e.g. `Sturdy Broccoli CMS`) and click **"Add New Application Password"**
+
+**Step 5:** Copy the generated password — it is shown **only once!**
+
+**Step 6:** Enter your WordPress URL, username, and that application password in the form below
+
+**Note:** Your site must have the REST API enabled (default on all WordPress sites)
+        """)
 
     wp_publisher = WordPressPublisher(db)
 
@@ -1887,7 +1608,7 @@ with tab_wp:
                     pages_payload.append({
                         "page_id": pid,
                         "title": page.get("topic", f"Page {pid}") if page else f"Page {pid}",
-                        "content": latest_ver["content_markdown"] if latest_ver else "",
+                        "content": latest_ver["content_html"] if latest_ver else "",
                         "status": pub_status,
                         "schedule_date": schedule_dt or None,
                         "categories": selected_cat_ids or None,
