@@ -1,0 +1,151 @@
+{
+  "brand": {
+    "name": "CrowdCreate",
+    "tagline": "Enterprise Digital PR & SEO Content",
+    "primary": "#1e3a5f",
+    "accent": "#3b82f6",
+    "dark": "#0f172a",
+    "light": "#f8fafc"
+  },
+  "meta": {
+    "title": "CrowdCreate — Enterprise Digital PR Agency",
+    "description": "Award-winning Digital PR and SEO content agency helping growth-stage companies secure top-tier press coverage, build powerful backlinks, and dominate Google."
+  },
+  "nav_links": [
+    {"text": "Services", "url": "#services"},
+    {"text": "Results", "url": "#stats"},
+    {"text": "Pricing", "url": "#pricing"},
+    {"text": "About", "url": "#about"}
+  ],
+  "hero": {
+    "badge": "🏆 #1 Rated Digital PR Agency 2024",
+    "heading": "Turn Your Brand Into\nMedia Authority",
+    "subheading": "We secure top-tier press coverage, build powerful backlinks, and create SEO content that dominates Google. Trusted by 200+ growth-stage companies.",
+    "video_url": "https://www.pexels.com/download/video/3195394/",
+    "poster_url": "https://images.pexels.com/videos/3195394/free-video-3195394.jpg"
+  },
+  "cta": {
+    "primary_text": "Get a Free Strategy Call",
+    "secondary_text": "See Our Work ↓",
+    "url": "#contact",
+    "banner_heading": "Ready to Dominate Your Industry?",
+    "banner_subheading": "Join 200+ companies growing with CrowdCreate's Digital PR engine."
+  },
+  "stats": [
+    {"value": "2,400+", "label": "Press Placements Secured"},
+    {"value": "94%", "label": "Client Retention Rate"},
+    {"value": "£2.1M", "label": "Average Client Revenue Uplift"},
+    {"value": "200+", "label": "Global Brands Served"}
+  ],
+  "problem": {
+    "heading": "The Content Trap Most Brands Fall Into",
+    "points": [
+      "Publishing blog posts nobody reads",
+      "Zero backlinks from authoritative domains",
+      "Invisible on Google for high-intent keywords",
+      "Wasting budget on paid ads with no organic foundation"
+    ]
+  },
+  "solution": {
+    "heading": "Our Data-Driven PR & SEO System",
+    "points": [
+      "Journalist-targeted digital PR campaigns",
+      "Authority backlinks from DA80+ publications",
+      "Hub-and-spoke SEO content architecture",
+      "Monthly performance reporting with clear ROI"
+    ]
+  },
+  "services": {
+    "heading": "Services Built for Growth",
+    "subheading": "Everything you need to become the authority in your market.",
+    "items": [
+      {"icon": "📰", "title": "Digital PR Campaigns", "description": "Data-led stories placed in Forbes, The Guardian, TechCrunch and 50+ tier-1 publications."},
+      {"icon": "🔗", "title": "Link Building", "description": "High-authority backlinks that move the needle on domain authority and organic rankings."},
+      {"icon": "✍️", "title": "SEO Content", "description": "Hub-and-spoke content clusters that capture buying-intent traffic at every funnel stage."},
+      {"icon": "📊", "title": "Competitor Analysis", "description": "Deep analysis of competitor gaps to position your brand where they can't compete."},
+      {"icon": "🎯", "title": "Thought Leadership", "description": "Executive ghostwriting and LinkedIn authority-building for founders and C-suite."},
+      {"icon": "📈", "title": "Ranking Tracker", "description": "Real-time keyword ranking dashboard with monthly performance reports."}
+    ]
+  },
+  "testimonials": {
+    "heading": "What Our Clients Say",
+    "items": [
+      {"quote": "CrowdCreate secured us 47 press placements in 90 days. Our domain authority jumped from 28 to 61.", "author": "Sarah Chen", "role": "CMO", "company": "TechFlow SaaS"},
+      {"quote": "The hub-and-spoke content strategy tripled our organic traffic in 6 months. Phenomenal ROI.", "author": "Marcus Williams", "role": "Founder", "company": "Growthbase"},
+      {"quote": "Finally an agency that treats content as a business asset, not just blog posts. Night and day difference.", "author": "Priya Patel", "role": "Head of Growth", "company": "Vertex Analytics"}
+    ]
+  },
+  "pricing": {
+    "heading": "Transparent, Performance-Focused Pricing",
+    "subheading": "No lock-in contracts. Cancel anytime.",
+    "tiers": [
+      {
+        "name": "Starter",
+        "price": "£2,500",
+        "period": "/month",
+        "description": "Perfect for growing brands ready to build authority.",
+        "features": ["5 Digital PR placements/month", "10 SEO articles", "Basic link building", "Monthly report"],
+        "cta_text": "Get Started",
+        "cta_url": "#contact",
+        "featured": false
+      },
+      {
+        "name": "Growth",
+        "price": "£5,500",
+        "period": "/month",
+        "description": "For companies serious about market domination.",
+        "features": ["15 Digital PR placements/month", "25 SEO articles", "Advanced link building", "Competitor gap analysis", "Bi-weekly strategy calls", "Dedicated account manager"],
+        "cta_text": "Most Popular — Start Now",
+        "cta_url": "#contact",
+        "featured": true
+      },
+      {
+        "name": "Enterprise",
+        "price": "Custom",
+        "period": "",
+        "description": "White-glove service for enterprise-scale campaigns.",
+        "features": ["Unlimited PR placements", "Custom content volume", "Executive ghostwriting", "C-suite thought leadership", "Weekly reporting", "Dedicated team of 5"],
+        "cta_text": "Book a Discovery Call",
+        "cta_url": "#contact",
+        "featured": false
+      }
+    ]
+  },
+  "footer": {
+    "columns": [
+      {
+        "heading": "Services",
+        "links": [
+          {"text": "Digital PR", "url": "#services"},
+          {"text": "Link Building", "url": "#services"},
+          {"text": "SEO Content", "url": "#services"},
+          {"text": "Thought Leadership", "url": "#services"}
+        ]
+      },
+      {
+        "heading": "Company",
+        "links": [
+          {"text": "About Us", "url": "#about"},
+          {"text": "Case Studies", "url": "#"},
+          {"text": "Blog", "url": "#"},
+          {"text": "Careers", "url": "#"}
+        ]
+      },
+      {
+        "heading": "Contact",
+        "links": [
+          {"text": "hello@crowdcreate.agency", "url": "mailto:hello@crowdcreate.agency"},
+          {"text": "Book a Call", "url": "#contact"},
+          {"text": "LinkedIn", "url": "#"},
+          {"text": "Twitter / X", "url": "#"}
+        ]
+      }
+    ],
+    "social": [
+      {"platform": "LinkedIn", "url": "#"},
+      {"platform": "Twitter", "url": "#"},
+      {"platform": "Instagram", "url": "#"}
+    ],
+    "copyright": "© 2026 CrowdCreate. All rights reserved."
+  }
+}
