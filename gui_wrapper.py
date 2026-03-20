@@ -14,6 +14,7 @@ import streamlit as st
 
 from src.competitor_analyzer import CompetitorAnalyzer
 from src.database import Database
+from src.html5_page_builder import HTML5PageBuilder
 from src.multi_format_generator import MultiFormatGenerator
 from src.prompt_builder import PromptBuilder
 from src.quality_scorer import QualityScorer
@@ -39,7 +40,101 @@ st.set_page_config(
     layout="wide",
 )
 
-st.title("🥦 Sturdy Broccoli — Enterprise SEO Content Factory")
+# ---------------------------------------------------------------------------
+# Professional CMS styling
+# ---------------------------------------------------------------------------
+st.markdown(
+    """
+<style>
+/* ─── Global typography & palette ───────────────────────────────────── */
+:root {
+  --primary: #1a3c6e;
+  --primary-light: #2563eb;
+  --accent: #f59e0b;
+  --success: #059669;
+  --bg-card: #f8fafc;
+  --border: #e2e8f0;
+  --text-muted: #64748b;
+}
+/* ─── App header ─────────────────────────────────────────────────────── */
+header[data-testid="stHeader"] {
+  background: linear-gradient(135deg, #0f2044 0%, #1a3c6e 100%);
+}
+/* ─── KPI / metric cards ─────────────────────────────────────────────── */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1rem;
+  margin: 1.5rem 0;
+}
+.kpi-card {
+  background: #fff;
+  border-radius: 10px;
+  padding: 1.5rem;
+  border: 1px solid var(--border);
+  box-shadow: 0 2px 12px rgba(0,0,0,.06);
+  text-align: center;
+  transition: transform .15s;
+}
+.kpi-card:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,.1); }
+.kpi-card .kpi-value { font-size: 2.4rem; font-weight: 800; color: var(--primary); line-height: 1; }
+.kpi-card .kpi-label { font-size: .8rem; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--text-muted); margin-top: .4rem; }
+/* Colour variants */
+.kpi-card.accent  .kpi-value { color: var(--accent); }
+.kpi-card.success .kpi-value { color: var(--success); }
+.kpi-card.info    .kpi-value { color: var(--primary-light); }
+/* ─── Layout template cards ──────────────────────────────────────────── */
+.layout-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+  margin: 1rem 0 1.5rem;
+}
+.layout-card {
+  background: #fff;
+  border: 2px solid var(--border);
+  border-radius: 10px;
+  padding: 1.25rem;
+  cursor: pointer;
+  transition: border-color .15s, box-shadow .15s;
+}
+.layout-card:hover, .layout-card.selected {
+  border-color: var(--primary-light);
+  box-shadow: 0 0 0 3px rgba(37,99,235,.15);
+}
+.layout-card .layout-icon { font-size: 1.8rem; margin-bottom: .5rem; }
+.layout-card .layout-name { font-weight: 700; font-size: .95rem; margin-bottom: .25rem; }
+.layout-card .layout-desc { font-size: .8rem; color: var(--text-muted); }
+/* ─── Activity feed ──────────────────────────────────────────────────── */
+.activity-item {
+  display: flex;
+  gap: .75rem;
+  align-items: flex-start;
+  padding: .6rem 0;
+  border-bottom: 1px solid var(--border);
+  font-size: .875rem;
+}
+.activity-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--primary-light); margin-top: .3rem; flex-shrink: 0; }
+/* ─── Cluster diagram ────────────────────────────────────────────────── */
+.cluster-hub {
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
+  color: #fff; border-radius: 12px; padding: 1rem 1.5rem;
+  text-align: center; font-weight: 700; font-size: 1rem; margin-bottom: .5rem;
+}
+.cluster-spoke {
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px;
+  padding: .65rem 1rem; margin: .25rem 0; font-size: .875rem;
+  display: flex; align-items: center; gap: .5rem;
+}
+/* ─── Section divider ────────────────────────────────────────────────── */
+.section-title {
+  font-size: 1.4rem; font-weight: 700; color: var(--primary);
+  border-left: 4px solid var(--accent); padding-left: .75rem; margin: 1.5rem 0 1rem;
+}
+</style>
+""",
+    unsafe_allow_html=True,
+)
 
 # ---------------------------------------------------------------------------
 # Initialise persistent database (stored in Streamlit session state so the
@@ -50,7 +145,9 @@ if "db" not in st.session_state:
 
 db: Database = st.session_state.db
 
-tab_prompt, tab_hub, tab_competitor, tab_multiformat, tab_template, tab_library, tab_staging, tab_validator, tab_agency, tab_editor, tab_wp, tab_ranking = st.tabs([
+tab_dashboard, tab_builder, tab_prompt, tab_hub, tab_competitor, tab_multiformat, tab_template, tab_library, tab_staging, tab_validator, tab_agency, tab_editor, tab_wp, tab_ranking = st.tabs([
+    "🏠 Dashboard",
+    "⚡ Page Builder",
     "📝 Prompt Generator",
     "🕸️ Hub & Spoke",
     "🔍 Competitor Analysis",
@@ -66,7 +163,286 @@ tab_prompt, tab_hub, tab_competitor, tab_multiformat, tab_template, tab_library,
 ])
 
 # ---------------------------------------------------------------------------
-# Tab 1: Prompt Generator (original functionality)
+# Tab 0: Dashboard — Command Centre
+# ---------------------------------------------------------------------------
+
+with tab_dashboard:
+    st.markdown(
+        "<h1 style='color:#1a3c6e;margin-bottom:.25rem'>🥦 Sturdy Broccoli</h1>"
+        "<p style='color:#64748b;font-size:1.05rem;margin-bottom:1.5rem'>"
+        "Enterprise SEO Content Factory — generate, review, and deploy high-quality webpages at scale.</p>",
+        unsafe_allow_html=True,
+    )
+
+    # KPI cards
+    stats = db.get_dashboard_stats()
+    _agency_dash = AgencyDashboard(db)
+    agency_stats = _agency_dash.get_revenue_stats()
+    avg_quality = stats.get("avg_quality_score", 0.0) or 0.0
+
+    kpi_html = f"""
+<div class="kpi-grid">
+  <div class="kpi-card">
+    <div class="kpi-value">{stats.get('total_pages', 0)}</div>
+    <div class="kpi-label">Pages Generated</div>
+  </div>
+  <div class="kpi-card success">
+    <div class="kpi-value">{stats.get('published_pages', 0)}</div>
+    <div class="kpi-label">Live / Published</div>
+  </div>
+  <div class="kpi-card info">
+    <div class="kpi-value">{len(_agency_dash.list_clients())}</div>
+    <div class="kpi-label">Active Clients</div>
+  </div>
+  <div class="kpi-card accent">
+    <div class="kpi-value">{avg_quality:.0f}</div>
+    <div class="kpi-label">Avg Quality Score</div>
+  </div>
+</div>
+"""
+    st.markdown(kpi_html, unsafe_allow_html=True)
+
+    col_activity, col_quick = st.columns([2, 1])
+
+    with col_activity:
+        st.markdown('<div class="section-title">📋 Recent Activity</div>', unsafe_allow_html=True)
+        recent_pages = db.list_pages()[:8]
+        if not recent_pages:
+            st.info("No pages yet — use the **⚡ Page Builder** tab to generate your first enterprise webpage.")
+        else:
+            activity_html = '<div>'
+            for page in recent_pages:
+                status_icon = {"published": "🟢", "draft": "📝", "review": "🔍", "archived": "📦"}.get(
+                    page.get("status", "draft"), "📄"
+                )
+                activity_html += (
+                    f'<div class="activity-item">'
+                    f'<div class="activity-dot"></div>'
+                    f'<div><strong>{page.get("topic", "Untitled")}</strong> '
+                    f'— {status_icon} {page.get("status", "draft")} '
+                    f'<span style="color:#94a3b8;font-size:.8rem">({page.get("created_at", "")[:10]})</span></div>'
+                    f'</div>'
+                )
+            activity_html += "</div>"
+            st.markdown(activity_html, unsafe_allow_html=True)
+
+    with col_quick:
+        st.markdown('<div class="section-title">⚡ Quick Actions</div>', unsafe_allow_html=True)
+        st.markdown("**Start building:**")
+        st.markdown("• [⚡ New Enterprise Page](#) → **Page Builder** tab")
+        st.markdown("• [🕸️ New Content Cluster](#) → **Hub & Spoke** tab")
+        st.markdown("• [📝 Generate Prompts](#) → **Prompt Generator** tab")
+        st.markdown("• [🚀 Deploy to WordPress](#) → **WordPress Publisher** tab")
+        st.divider()
+        st.markdown("**Platform stats:**")
+        st.write(f"📄 Draft: **{stats.get('draft_pages', 0)}** · 🔍 In Review: **{stats.get('review_pages', 0)}**")
+        st.write(f"📦 Total Batches: **{agency_stats.get('draft_batches', 0) + agency_stats.get('staged_batches', 0) + agency_stats.get('approved_batches', 0) + agency_stats.get('deployed_batches', 0)}**")
+        st.write(f"💰 Revenue Tracked: **${agency_stats.get('total_revenue', 0):,.0f}**")
+
+    st.divider()
+
+    # Platform overview
+    st.markdown('<div class="section-title">🔧 Platform Modules</div>', unsafe_allow_html=True)
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
+        st.markdown("**⚡ Page Builder**")
+        st.caption("Generate enterprise HTML5 pages with 6 layout templates")
+    with c2:
+        st.markdown("**🕸️ Hub & Spoke**")
+        st.caption("Build content clusters and batch-generate related pages")
+    with c3:
+        st.markdown("**🚀 WordPress**")
+        st.caption("One-click deploy to any WordPress site with scheduling")
+    with c4:
+        st.markdown("**📊 Rankings**")
+        st.caption("Track GSC & SEMrush rankings across all your clients")
+
+
+# ---------------------------------------------------------------------------
+# Tab 1: Page Builder — Enterprise HTML5 Generator (core feature)
+# ---------------------------------------------------------------------------
+
+with tab_builder:
+    st.header("⚡ Enterprise Page Builder")
+    st.caption(
+        "Generate production-ready HTML5 enterprise webpages in one click. "
+        "Select a layout, configure your content, and export or deploy directly to WordPress."
+    )
+
+    pb = HTML5PageBuilder()
+
+    col_left, col_right = st.columns([1, 1])
+
+    with col_left:
+        # -- Layout selector --------------------------------------------------
+        st.markdown('<div class="section-title">1️⃣ Choose Layout Template</div>', unsafe_allow_html=True)
+
+        layout_options = list(pb.LAYOUTS.keys())
+        layout_labels = [f"{v['icon']} {v['label']}" for v in pb.LAYOUTS.values()]
+
+        selected_layout = st.radio(
+            "Layout:",
+            layout_options,
+            format_func=lambda k: f"{pb.LAYOUTS[k]['icon']} {pb.LAYOUTS[k]['label']}",
+            horizontal=False,
+            key="pb_layout",
+        )
+
+        if selected_layout:
+            layout_info = pb.LAYOUTS[selected_layout]
+            st.info(
+                f"**{layout_info['icon']} {layout_info['label']}** — {layout_info['description']}\n\n"
+                f"Best for: {', '.join(layout_info['best_for'])}"
+            )
+
+        st.markdown('<div class="section-title">2️⃣ Content Configuration</div>', unsafe_allow_html=True)
+
+        pb_business = st.text_input("Business / Brand Name", placeholder="Acme SEO Agency", key="pb_business")
+        pb_service = st.text_input("Service / Topic", placeholder="Local SEO Services", key="pb_service")
+        pb_keyword = st.text_input("Primary Keyword", placeholder="local seo agency london", key="pb_keyword")
+        pb_audience = st.text_input("Target Audience", placeholder="SMEs in London", key="pb_audience")
+
+        pb_tone = st.selectbox(
+            "Tone",
+            ["Professional", "Conversational", "Technical", "Authority"],
+            key="pb_tone",
+        )
+
+        pb_cta_text = st.text_input("CTA Button Text", value="Get a Free Consultation", key="pb_cta_text")
+        pb_cta_url = st.text_input("CTA URL", placeholder="https://example.com/contact", key="pb_cta_url")
+        pb_canonical = st.text_input("Canonical URL", placeholder="https://example.com/local-seo", key="pb_canonical")
+
+        pb_color = st.selectbox(
+            "Colour Scheme",
+            list(pb._PALETTES.keys()),
+            format_func=lambda k: k.replace("_", " ").title(),
+            key="pb_color",
+        )
+
+        st.markdown("**Page Sections:**")
+        col_sec1, col_sec2 = st.columns(2)
+        with col_sec1:
+            sec_hero = st.checkbox("Hero", value=True, key="pb_sec_hero")
+            sec_features = st.checkbox("Features Grid", value=True, key="pb_sec_features")
+            sec_benefits = st.checkbox("Benefits / Stats", value=True, key="pb_sec_benefits")
+        with col_sec2:
+            sec_proof = st.checkbox("Social Proof", value=True, key="pb_sec_proof")
+            sec_faq = st.checkbox("FAQ", value=True, key="pb_sec_faq")
+            sec_cta = st.checkbox("CTA Section", value=True, key="pb_sec_cta")
+
+        selected_sections = [
+            s for s, checked in [
+                ("hero", sec_hero), ("features", sec_features), ("benefits", sec_benefits),
+                ("social_proof", sec_proof), ("faq", sec_faq), ("cta", sec_cta),
+            ] if checked
+        ]
+
+    with col_right:
+        st.markdown('<div class="section-title">3️⃣ Generate & Export</div>', unsafe_allow_html=True)
+
+        if st.button("⚡ Generate Enterprise Page", type="primary", key="btn_generate_page"):
+            if not pb_business or not pb_service:
+                st.error("Business name and service/topic are required.")
+            else:
+                config = {
+                    "layout": selected_layout,
+                    "business_name": pb_business,
+                    "service": pb_service,
+                    "primary_keyword": pb_keyword or pb_service,
+                    "target_audience": pb_audience or "businesses",
+                    "tone": pb_tone,
+                    "cta_text": pb_cta_text,
+                    "cta_url": pb_cta_url or "#contact",
+                    "canonical_url": pb_canonical or f"https://example.com/{pb_keyword.replace(' ', '-').lower() if pb_keyword else 'page'}",
+                    "color_scheme": pb_color,
+                    "sections": selected_sections,
+                }
+                try:
+                    generated_html = pb.generate_page(config)
+                    st.session_state["pb_generated_html"] = generated_html
+                    st.session_state["pb_generated_config"] = config
+                    st.success(
+                        f"✅ Enterprise page generated! "
+                        f"**{len(generated_html):,} characters** of production-ready HTML5."
+                    )
+                except Exception as exc:
+                    st.error(f"Generation error: {exc}")
+
+        generated = st.session_state.get("pb_generated_html")
+        if generated:
+            st.markdown("---")
+
+            # Download button
+            st.download_button(
+                label="⬇️ Download HTML File",
+                data=generated,
+                file_name=f"{(pb_service or 'page').lower().replace(' ', '-')}.html",
+                mime="text/html",
+                key="btn_dl_html",
+            )
+
+            # Save to Page Library
+            if st.button("💾 Save to Page Library", key="btn_save_to_library"):
+                cfg = st.session_state.get("pb_generated_config", {})
+                pid = db.create_page(
+                    service_type="html5_page_builder",
+                    topic=cfg.get("service", "Enterprise Page"),
+                    primary_keyword=cfg.get("primary_keyword", ""),
+                    page_type=cfg.get("layout", "landing_page"),
+                )
+                db.save_content_version(
+                    pid,
+                    content_html=generated,
+                    content_markdown="",
+                    quality_report={},
+                )
+                st.success(f"✅ Saved to Page Library (ID: {pid})")
+
+            # Deploy to WordPress
+            wp_pub = WordPressPublisher(db)
+            wp_conns = wp_pub.list_connections()
+            if wp_conns:
+                st.markdown("---")
+                conn_options = {
+                    f"{c.get('site_name') or c['site_url']} (id={c['id']})": c["id"]
+                    for c in wp_conns
+                }
+                sel_conn = st.selectbox(
+                    "Deploy to WordPress site:",
+                    list(conn_options.keys()),
+                    key="pb_wp_conn",
+                )
+                if st.button("🚀 Deploy to WordPress", key="btn_deploy_to_wp"):
+                    cfg = st.session_state.get("pb_generated_config", {})
+                    result = wp_pub.publish_page(
+                        page_id=0,
+                        connection_id=conn_options[sel_conn],
+                        title=cfg.get("service", "Enterprise Page"),
+                        content=generated,
+                        status="draft",
+                    )
+                    if result["success"]:
+                        st.success(f"✅ Deployed! View at: {result.get('post_url', '—')}")
+                    else:
+                        st.error(f"Deploy failed: {result.get('message')}")
+            else:
+                st.info("💡 Add a WordPress connection in the **🚀 WordPress Publisher** tab to deploy pages.")
+
+            # Live preview
+            st.markdown("---")
+            with st.expander("🖥️ Live Preview (iframe)", expanded=False):
+                try:
+                    import streamlit.components.v1 as components
+                    components.html(generated, height=600, scrolling=True)
+                except Exception:
+                    st.code(generated[:3000] + "\n...", language="html")
+
+            with st.expander("📄 View HTML Source"):
+                st.code(generated, language="html")
+
+
+# ---------------------------------------------------------------------------
+# Tab 2: Prompt Generator (original functionality)
 # ---------------------------------------------------------------------------
 
 with tab_prompt:
@@ -114,22 +490,24 @@ with tab_prompt:
                     st.error(f"Page data validation error: {exc}")
 
 # ---------------------------------------------------------------------------
-# Tab 2: Hub & Spoke Generator
+# Tab 3: Hub & Spoke Content Cluster Builder
 # ---------------------------------------------------------------------------
 
 with tab_hub:
-    st.header("Hub & Spoke Content Generator")
+    st.header("🕸️ Hub & Spoke Content Cluster Builder")
     st.caption(
-        "Generate a service hub page, supporting spoke blog posts, and a thought leadership guide "
-        "using the hub-and-spoke content model."
+        "Build an entire content cluster: select a hub layout, auto-generate spoke topics, "
+        "assign layout templates to each spoke, and batch-generate all pages with consistent branding."
     )
+
+    _pb_hub = HTML5PageBuilder()
 
     col_hub_left, col_hub_right = st.columns([1, 1])
 
     with col_hub_left:
         hub_json_input = st.text_area(
             "Hub Page Data (JSON):",
-            height=250,
+            height=200,
             placeholder='{"topic": "LinkedIn Marketing", "primary_keyword": "...", ...}',
             key="hub_page_data",
         )
@@ -144,6 +522,24 @@ with tab_hub:
                 st.info(f"Loaded template for: {hub_topic_hint}")
                 st.json(rendered)
 
+        st.markdown("**Hub Layout Template:**")
+        hub_layout = st.selectbox(
+            "Hub page layout:",
+            list(_pb_hub.LAYOUTS.keys()),
+            format_func=lambda k: f"{_pb_hub.LAYOUTS[k]['icon']} {_pb_hub.LAYOUTS[k]['label']}",
+            key="hub_layout",
+        )
+
+        hub_business = st.text_input("Business / Brand Name", placeholder="Acme Agency", key="hub_business")
+        hub_color = st.selectbox(
+            "Brand Colour Scheme",
+            list(_pb_hub._PALETTES.keys()),
+            format_func=lambda k: k.replace("_", " ").title(),
+            key="hub_color",
+        )
+        hub_cta_text = st.text_input("CTA Text", value="Get a Free Consultation", key="hub_cta_text")
+        hub_cta_url = st.text_input("CTA URL", placeholder="https://example.com/contact", key="hub_cta_url")
+
     with col_hub_right:
         spoke_topics_input = st.text_area(
             "Spoke Topics (one per line):",
@@ -157,34 +553,178 @@ with tab_hub:
             key="hub_guide_title",
         )
 
-    if st.button("Preview Hub & Spoke Prompts", key="btn_hub_spoke"):
-        if not hub_json_input.strip() or not spoke_topics_input.strip():
-            st.error("Please provide both hub page data and spoke topics.")
-        else:
-            try:
-                hub_data = json.loads(hub_json_input)
-                spoke_topics = [t.strip() for t in spoke_topics_input.strip().splitlines() if t.strip()]
-                builder = PromptBuilder()
+        st.markdown("**Default Spoke Layout:**")
+        spoke_layout = st.selectbox(
+            "Spoke page layout:",
+            list(_pb_hub.LAYOUTS.keys()),
+            format_func=lambda k: f"{_pb_hub.LAYOUTS[k]['icon']} {_pb_hub.LAYOUTS[k]['label']}",
+            index=list(_pb_hub.LAYOUTS.keys()).index("blog_article"),
+            key="spoke_layout",
+        )
 
-                with st.expander("Hub Prompt", expanded=True):
-                    st.code(builder.build_hub_prompt(hub_data), language="markdown")
+    # -- Cluster batch generation -------------------------------------------
+    st.divider()
+    col_gen1, col_gen2 = st.columns(2)
 
-                st.subheader(f"Spoke Prompts ({len(spoke_topics)} spokes)")
-                spoke_prompts = builder.build_spoke_prompts(hub_data, spoke_topics)
-                for sp in spoke_prompts:
-                    with st.expander(f"Spoke {sp['spoke_number']}: {sp['topic']}"):
-                        st.code(sp["prompt"], language="markdown")
+    with col_gen1:
+        if st.button("🔍 Preview Hub & Spoke Prompts", key="btn_hub_spoke"):
+            if not hub_json_input.strip() or not spoke_topics_input.strip():
+                st.error("Please provide both hub page data and spoke topics.")
+            else:
+                try:
+                    hub_data = json.loads(hub_json_input)
+                    spoke_topics = [t.strip() for t in spoke_topics_input.strip().splitlines() if t.strip()]
+                    builder = PromptBuilder()
 
-                if guide_title_input:
-                    with st.expander("Thought Leadership Guide Prompt"):
-                        st.code(
-                            builder.build_thought_leadership_prompt(hub_data, guide_title_input),
-                            language="markdown",
-                        )
-            except json.JSONDecodeError as exc:
-                st.error(f"Invalid hub page data JSON: {exc}")
-            except ValueError as exc:
-                st.error(f"Validation error: {exc}")
+                    with st.expander("Hub Prompt", expanded=True):
+                        st.code(builder.build_hub_prompt(hub_data), language="markdown")
+
+                    st.subheader(f"Spoke Prompts ({len(spoke_topics)} spokes)")
+                    spoke_prompts = builder.build_spoke_prompts(hub_data, spoke_topics)
+                    for sp in spoke_prompts:
+                        with st.expander(f"Spoke {sp['spoke_number']}: {sp['topic']}"):
+                            st.code(sp["prompt"], language="markdown")
+
+                    if guide_title_input:
+                        with st.expander("Thought Leadership Guide Prompt"):
+                            st.code(
+                                builder.build_thought_leadership_prompt(hub_data, guide_title_input),
+                                language="markdown",
+                            )
+                except json.JSONDecodeError as exc:
+                    st.error(f"Invalid hub page data JSON: {exc}")
+                except ValueError as exc:
+                    st.error(f"Validation error: {exc}")
+
+    with col_gen2:
+        if st.button("⚡ Batch Generate HTML5 Cluster", key="btn_batch_gen_cluster", type="primary"):
+            spoke_lines = [t.strip() for t in spoke_topics_input.strip().splitlines() if t.strip()]
+            if not hub_business or not spoke_lines:
+                st.error("Business name and at least one spoke topic are required.")
+            else:
+                hub_topic = ""
+                hub_keyword = ""
+                if hub_json_input.strip():
+                    try:
+                        hd = json.loads(hub_json_input)
+                        hub_topic = hd.get("topic", "")
+                        hub_keyword = hd.get("primary_keyword", "")
+                    except json.JSONDecodeError:
+                        pass
+                hub_topic = hub_topic or (spoke_lines[0] if spoke_lines else "SEO Services")
+
+                cluster_pages: list[dict] = []
+
+                # Generate hub page
+                hub_config = {
+                    "layout": hub_layout,
+                    "business_name": hub_business,
+                    "service": hub_topic,
+                    "primary_keyword": hub_keyword or hub_topic,
+                    "target_audience": "businesses",
+                    "tone": "Professional",
+                    "color_scheme": hub_color,
+                    "cta_text": hub_cta_text,
+                    "cta_url": hub_cta_url or "#contact",
+                    "sections": ["hero", "features", "benefits", "social_proof", "faq", "cta"],
+                }
+                try:
+                    hub_html = _pb_hub.generate_page(hub_config)
+                    cluster_pages.append({"type": "hub", "topic": hub_topic, "html": hub_html, "config": hub_config})
+                except Exception as exc:
+                    st.error(f"Hub generation failed: {exc}")
+
+                # Generate spoke pages
+                for spoke_topic in spoke_lines:
+                    spoke_config = {
+                        "layout": spoke_layout,
+                        "business_name": hub_business,
+                        "service": spoke_topic,
+                        "primary_keyword": spoke_topic.lower(),
+                        "target_audience": "businesses",
+                        "tone": "Professional",
+                        "color_scheme": hub_color,
+                        "cta_text": hub_cta_text,
+                        "cta_url": hub_cta_url or "#contact",
+                        "sections": ["hero", "features", "benefits", "faq", "cta"],
+                    }
+                    try:
+                        spoke_html = _pb_hub.generate_page(spoke_config)
+                        cluster_pages.append({"type": "spoke", "topic": spoke_topic, "html": spoke_html, "config": spoke_config})
+                    except Exception as exc:
+                        st.warning(f"Spoke '{spoke_topic}' failed: {exc}")
+
+                st.session_state["hub_cluster_pages"] = cluster_pages
+                st.success(f"✅ Generated {len(cluster_pages)} pages in the cluster!")
+
+    # -- Cluster visual diagram + results ------------------------------------
+    cluster_pages = st.session_state.get("hub_cluster_pages", [])
+    if cluster_pages:
+        st.divider()
+        st.markdown('<div class="section-title">🌐 Cluster Diagram</div>', unsafe_allow_html=True)
+
+        hub_pages = [p for p in cluster_pages if p["type"] == "hub"]
+        spoke_pages = [p for p in cluster_pages if p["type"] == "spoke"]
+
+        hub_name = hub_pages[0]["topic"] if hub_pages else "Hub Page"
+        diagram_html = f'<div class="cluster-hub">🏢 HUB: {hub_name}</div>'
+        for i, sp in enumerate(spoke_pages, 1):
+            diagram_html += f'<div class="cluster-spoke">↳ 📝 Spoke {i}: {sp["topic"]}</div>'
+        st.markdown(diagram_html, unsafe_allow_html=True)
+
+        st.divider()
+        st.markdown('<div class="section-title">📦 Generated Pages</div>', unsafe_allow_html=True)
+        for page in cluster_pages:
+            icon = "🏢" if page["type"] == "hub" else "📝"
+            with st.expander(f"{icon} {page['topic']} ({len(page['html']):,} chars)"):
+                st.download_button(
+                    f"⬇️ Download {page['topic']}.html",
+                    data=page["html"],
+                    file_name=f"{page['topic'].lower().replace(' ', '-')}.html",
+                    mime="text/html",
+                    key=f"dl_cluster_{page['topic']}",
+                )
+                if st.button(f"💾 Save to Library", key=f"save_cluster_{page['topic']}"):
+                    pid = db.create_page(
+                        service_type="hub_and_spoke",
+                        topic=page["topic"],
+                        primary_keyword=page["config"].get("primary_keyword", ""),
+                        page_type=page["config"].get("layout", "landing_page"),
+                    )
+                    db.save_content_version(pid, content_html=page["html"], content_markdown="", quality_report={})
+                    st.success(f"Saved to library (ID: {pid})")
+
+        # Deploy entire cluster to WordPress
+        wp_pub_cluster = WordPressPublisher(db)
+        wp_conns_cluster = wp_pub_cluster.list_connections()
+        if wp_conns_cluster:
+            st.divider()
+            conn_opts_cluster = {
+                f"{c.get('site_name') or c['site_url']} (id={c['id']})": c["id"]
+                for c in wp_conns_cluster
+            }
+            sel_conn_cluster = st.selectbox(
+                "Deploy to WordPress site:",
+                list(conn_opts_cluster.keys()),
+                key="cluster_wp_conn",
+            )
+            cluster_start_date = st.date_input("Start date for staggered publishing:", key="cluster_start_date")
+            if st.button("🚀 Deploy Entire Cluster to WordPress (Staggered)", key="btn_deploy_cluster", type="primary"):
+                pages_payload = [
+                    {"page_id": 0, "title": p["topic"], "content": p["html"]}
+                    for p in cluster_pages
+                ]
+                results = wp_pub_cluster.batch_publish_staggered(
+                    pages=pages_payload,
+                    connection_id=conn_opts_cluster[sel_conn_cluster],
+                    start_date=cluster_start_date.isoformat(),
+                    interval_days=1,
+                )
+                for r in results:
+                    if r["success"]:
+                        st.success(f"✅ '{r.get('page_id')}' scheduled for {r.get('scheduled_date', '?')}")
+                    else:
+                        st.error(f"❌ Failed: {r.get('message')}")
 
     st.markdown("---")
     st.info(
@@ -1190,7 +1730,7 @@ with tab_editor:
 
 with tab_wp:
     st.header("🚀 WordPress Publisher")
-    st.caption("Connect WordPress sites and publish pages with one click.")
+    st.caption("Connect WordPress sites and publish pages with one click. Test connections, manage categories, and schedule publishing.")
 
     wp_publisher = WordPressPublisher(db)
 
@@ -1228,12 +1768,58 @@ with tab_wp:
     else:
         st.write(f"**{len(connections)} connection(s) configured:**")
         for conn in connections:
-            col_a, col_b, col_c = st.columns([3, 2, 1])
+            col_a, col_b, col_c, col_d = st.columns([3, 2, 1, 1])
             col_a.markdown(f"🌐 **{conn.get('site_name') or conn['site_url']}** — `{conn['site_url']}`")
             col_b.caption(f"User: {conn.get('api_username', '—')}  |  id: {conn['id']}")
-            if col_c.button("🗑️", key=f"del_wp_{conn['id']}", help="Delete connection"):
+            if col_c.button("🔍 Test", key=f"test_wp_{conn['id']}", help="Test connection"):
+                result = wp_publisher.test_connection(conn["id"])
+                if result["success"]:
+                    st.success(f"✅ Connection OK: {result.get('message')}")
+                else:
+                    st.error(f"❌ {result.get('message')}")
+            if col_d.button("🗑️", key=f"del_wp_{conn['id']}", help="Delete connection"):
                 wp_publisher.remove_connection(conn["id"])
                 st.rerun()
+
+    st.divider()
+
+    # -- Category / Tag management -------------------------------------------
+    st.subheader("🏷️ Categories & Tags")
+    if connections:
+        cat_conn_options = {
+            f"{c.get('site_name') or c['site_url']} (id={c['id']})": c["id"]
+            for c in connections
+        }
+        cat_conn_sel = st.selectbox("WordPress site:", list(cat_conn_options.keys()), key="wp_cat_conn")
+        cat_conn_id = cat_conn_options[cat_conn_sel]
+
+        col_cat, col_tag = st.columns(2)
+        with col_cat:
+            if st.button("📋 Fetch Categories", key="btn_fetch_cats"):
+                cats = wp_publisher.get_categories(cat_conn_id)
+                if cats:
+                    st.session_state[f"wp_cats_{cat_conn_id}"] = cats
+                    st.success(f"Found {len(cats)} categories.")
+                else:
+                    st.warning("No categories found or connection failed.")
+            cached_cats = st.session_state.get(f"wp_cats_{cat_conn_id}", [])
+            if cached_cats:
+                for cat in cached_cats[:20]:
+                    st.write(f"📂 **{cat['name']}** (id={cat['id']}, count={cat['count']})")
+        with col_tag:
+            if st.button("🔖 Fetch Tags", key="btn_fetch_tags"):
+                tags = wp_publisher.get_tags(cat_conn_id)
+                if tags:
+                    st.session_state[f"wp_tags_{cat_conn_id}"] = tags
+                    st.success(f"Found {len(tags)} tags.")
+                else:
+                    st.warning("No tags found or connection failed.")
+            cached_tags = st.session_state.get(f"wp_tags_{cat_conn_id}", [])
+            if cached_tags:
+                for tag in cached_tags[:20]:
+                    st.write(f"🏷️ **{tag['name']}** (id={tag['id']}, count={tag['count']})")
+    else:
+        st.info("Add a WordPress connection above to manage categories and tags.")
 
     st.divider()
 
@@ -1256,7 +1842,34 @@ with tab_wp:
         selected_pages_labels = st.multiselect("Select pages to publish:", list(page_options_pub.keys()), key="pub_pages_sel")
 
         pub_status = st.radio("Publish status:", ["draft", "publish"], horizontal=True, key="pub_status_radio")
-        schedule_dt = st.text_input("Schedule date (ISO 8601, optional):", placeholder="2025-12-01T09:00:00", key="pub_schedule")
+
+        pub_mode = st.radio("Publishing mode:", ["Immediate", "Staggered Schedule"], horizontal=True, key="pub_mode_radio")
+
+        schedule_dt = None
+        stagger_start = None
+        stagger_interval = 1
+        if pub_mode == "Immediate":
+            schedule_dt = st.text_input("Schedule date (ISO 8601, optional):", placeholder="2025-12-01T09:00:00", key="pub_schedule")
+        else:
+            stagger_start = st.date_input("Start date:", key="pub_stagger_start")
+            stagger_interval = st.number_input("Interval (days between posts):", min_value=1, max_value=30, value=1, key="pub_stagger_interval")
+            pub_hour = st.number_input("Publish hour (UTC, 0-23):", min_value=0, max_value=23, value=9, key="pub_hour")
+
+        # Optional category/tag assignment
+        cached_cats_pub = st.session_state.get(f"wp_cats_{selected_conn_id}", [])
+        cached_tags_pub = st.session_state.get(f"wp_tags_{selected_conn_id}", [])
+        selected_cat_ids: list[int] = []
+        selected_tag_ids: list[int] = []
+
+        if cached_cats_pub:
+            cat_label_to_id = {f"{c['name']} (id={c['id']})": c["id"] for c in cached_cats_pub}
+            chosen_cats = st.multiselect("Assign categories:", list(cat_label_to_id.keys()), key="pub_cats_sel")
+            selected_cat_ids = [cat_label_to_id[c] for c in chosen_cats]
+
+        if cached_tags_pub:
+            tag_label_to_id = {f"{t['name']} (id={t['id']})": t["id"] for t in cached_tags_pub}
+            chosen_tags = st.multiselect("Assign tags:", list(tag_label_to_id.keys()), key="pub_tags_sel")
+            selected_tag_ids = [tag_label_to_id[t] for t in chosen_tags]
 
         if st.button("🚀 Publish Selected Pages", key="btn_publish_pages"):
             if not selected_pages_labels:
@@ -1273,26 +1886,44 @@ with tab_wp:
                         "content": latest_ver["content_markdown"] if latest_ver else "",
                         "status": pub_status,
                         "schedule_date": schedule_dt or None,
+                        "categories": selected_cat_ids or None,
+                        "tags": selected_tag_ids or None,
                     })
 
-                results = wp_publisher.batch_publish(pages_payload, selected_conn_id)
-                for r in results:
-                    pid = r.get("page_id")
-                    if r["success"]:
-                        st.success(f"✅ Page {pid}: Published — {r.get('post_url', '')}")
-                    else:
-                        st.error(f"❌ Page {pid}: {r.get('message', 'Unknown error')}")
+                if pub_mode == "Staggered Schedule" and stagger_start:
+                    results = wp_publisher.batch_publish_staggered(
+                        pages=pages_payload,
+                        connection_id=selected_conn_id,
+                        start_date=stagger_start.isoformat(),
+                        interval_days=int(stagger_interval),
+                        publish_hour=int(pub_hour),
+                    )
+                    for r in results:
+                        pid = r.get("page_id")
+                        if r["success"]:
+                            st.success(f"✅ Page {pid}: Scheduled for {r.get('scheduled_date', '?')}")
+                        else:
+                            st.error(f"❌ Page {pid}: {r.get('message', 'Unknown error')}")
+                else:
+                    results = wp_publisher.batch_publish(pages_payload, selected_conn_id)
+                    for r in results:
+                        pid = r.get("page_id")
+                        if r["success"]:
+                            st.success(f"✅ Page {pid}: Published — {r.get('post_url', '')}")
+                        else:
+                            st.error(f"❌ Page {pid}: {r.get('message', 'Unknown error')}")
 
     st.divider()
 
     # -- Publishing history ---------------------------------------------------
-    st.subheader("📋 Publishing History")
+    st.subheader("📋 Publishing Status Dashboard")
     all_wp_posts = db.list_wordpress_posts()
     if not all_wp_posts:
         st.info("No publishing records yet.")
     else:
+        st.write(f"**{len(all_wp_posts)} publishing record(s):**")
         for rec in all_wp_posts[:20]:
-            status_icon = "✅" if rec["status"] in ("published", "publish") else "📝" if rec["status"] == "draft" else "⏰" if rec["status"] == "scheduled" else "❌"
+            status_icon = "✅" if rec["status"] in ("published", "publish") else "📝" if rec["status"] == "draft" else "⏰" if rec["status"] in ("scheduled", "future") else "❌"
             col1, col2, col3 = st.columns([1, 3, 2])
             col1.write(f"{status_icon} {rec['status']}")
             col2.write(f"Page {rec.get('page_id', '—')} → {rec.get('post_url') or '—'}")
