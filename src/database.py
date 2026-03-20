@@ -823,7 +823,7 @@ class Database:
 
     def create_page(
         self,
-        service_type_or_data: "str | dict[str, Any]",
+        service_type: "str | dict[str, Any] | None" = None,
         topic: str = "",
         primary_keyword: str = "",
         page_type: str = "landing_page",
@@ -839,15 +839,14 @@ class Database:
 
         Parameters
         ----------
-        service_type_or_data:
-            Either a service-category key (``str``, legacy) or a full page-
-            data dict for the staging workflow.
+        service_type:
+            Either a service-category key (``str``, legacy), a full page-data
+            dict for the staging workflow, or ``None``.
         """
-        if isinstance(service_type_or_data, dict):
-            return self._create_staging_page(service_type_or_data)
+        if isinstance(service_type, dict):
+            return self._create_staging_page(service_type)
 
         # --- Legacy path: insert into ``pages`` table ---
-        service_type = service_type_or_data
         now = _now()
         with self._connect() as conn:
             cur = conn.execute(
