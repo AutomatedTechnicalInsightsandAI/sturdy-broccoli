@@ -616,3 +616,164 @@ class WordPressPublisher:
             "post_id": latest["post_id"],
             "created_at": latest["created_at"],
         }
+
+    def get_categories(self, connection_id: int) -> list[dict[str, Any]]:
+        """
+        Fetch available categories from a WordPress site.
+
+        Returns
+        -------
+        list[dict]
+            Each dict contains ``id``, ``name``, ``slug``, and ``count``.
+            Returns an empty list on failure.
+        """
+        conn = self._db.get_wordpress_connection(connection_id)
+        if conn is None:
+            return []
+
+        try:
+            http = self._get_http()
+        except RuntimeError:
+            return []
+
+        password = _deobfuscate(conn["api_password_encrypted"])
+        url = f"{conn['site_url']}/wp-json/wp/v2/categories"
+        try:
+            resp = http.get(
+                url,
+                auth=(conn["api_username"], password),
+                params={"per_page": 100},
+                timeout=15,
+            )
+            if resp.status_code == 200:
+                raw = resp.json()
+                return [
+                    {
+                        "id": item.get("id"),
+                        "name": item.get("name", ""),
+                        "slug": item.get("slug", ""),
+                        "count": item.get("count", 0),
+                    }
+                    for item in (raw if isinstance(raw, list) else [])
+                ]
+        except Exception:
+            pass
+        return []
+
+    def get_tags(self, connection_id: int) -> list[dict[str, Any]]:
+        """
+        Fetch available tags from a WordPress site.
+
+        Returns
+        -------
+        list[dict]
+            Each dict contains ``id``, ``name``, ``slug``, and ``count``.
+            Returns an empty list on failure.
+        """
+        conn = self._db.get_wordpress_connection(connection_id)
+        if conn is None:
+            return []
+
+        try:
+            http = self._get_http()
+        except RuntimeError:
+            return []
+
+        password = _deobfuscate(conn["api_password_encrypted"])
+        url = f"{conn['site_url']}/wp-json/wp/v2/tags"
+        try:
+            resp = http.get(
+                url,
+                auth=(conn["api_username"], password),
+                params={"per_page": 100},
+                timeout=15,
+            )
+            if resp.status_code == 200:
+                raw = resp.json()
+                return [
+                    {
+                        "id": item.get("id"),
+                        "name": item.get("name", ""),
+                        "slug": item.get("slug", ""),
+                        "count": item.get("count", 0),
+                    }
+                    for item in (raw if isinstance(raw, list) else [])
+                ]
+        except Exception:
+            pass
+        return []
+
+    def batch_publish_staggered(
+        self,
+        pages: list[dict[str, Any]],
+        connection_id: int,
+        start_date: str,
+        interval_days: int = 1,
+        publish_hour: int = 9,
+        default_status: str = "future",
+        client_id: int | None = None,
+    ) -> list[dict[str, Any]]:
+        """
+        Publish multiple pages with staggered scheduling.
+
+        Each page is assigned an ``schedule_date`` that is *interval_days*
+        apart, starting from *start_date*.
+
+        Parameters
+        ----------
+        pages:
+            List of page dicts (same format as :meth:`batch_publish`).
+        connection_id:
+            WordPress connection to publish to.
+        start_date:
+            ISO-8601 date string for the first page (``YYYY-MM-DD``).
+        interval_days:
+            Number of days between each page publication.
+        publish_hour:
+            Hour of day (0-23) to schedule each post (UTC).
+        default_status:
+            WP status to use (``'future'`` or ``'publish'``).
+        client_id:
+            Optional client ID for all records.
+
+        Returns
+        -------
+        list[dict]
+            One result dict per page, same format as :meth:`publish_page`.
+        """
+        from datetime import date, timedelta
+
+        try:
+            base = date.fromisoformat(start_date)
+        except ValueError:
+            base = date.today()
+
+        results = []
+        for i, page in enumerate(pages):
+            scheduled_dt = base + timedelta(days=i * interval_days)
+            schedule_iso = (
+                f"{scheduled_dt.isoformat()}T{publish_hour:02d}:00:00"
+            )
+            page_copy = dict(page)
+            page_copy.setdefault("status", default_status)
+            page_copy["schedule_date"] = schedule_iso
+
+            result = self.publish_page(
+                page_id=page_copy["page_id"],
+                connection_id=connection_id,
+                title=page_copy["title"],
+                content=page_copy["content"],
+                status=page_copy.get("status", default_status),
+                slug=page_copy.get("slug", ""),
+                excerpt=page_copy.get("excerpt", ""),
+                schedule_date=page_copy["schedule_date"],
+                categories=page_copy.get("categories"),
+                tags=page_copy.get("tags"),
+                author=page_copy.get("author"),
+                link_map=page_copy.get("link_map"),
+                client_id=client_id,
+            )
+            result["page_id"] = page_copy["page_id"]
+            result["scheduled_date"] = schedule_iso
+            results.append(result)
+        return results

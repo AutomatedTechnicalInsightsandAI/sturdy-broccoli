@@ -282,3 +282,137 @@ class TestUpdatePost:
     def test_update_missing_record(self, publisher: WordPressPublisher) -> None:
         result = publisher.update_post(9999, title="T")
         assert result["success"] is False
+
+
+# ---------------------------------------------------------------------------
+# get_categories / get_tags
+# ---------------------------------------------------------------------------
+
+
+class TestGetCategories:
+    def test_returns_list_of_dicts(
+        self, publisher: WordPressPublisher, connection_id: int
+    ) -> None:
+        http = _make_mock_http(
+            json_data=[
+                {"id": 1, "name": "Blog", "slug": "blog", "count": 5},
+                {"id": 2, "name": "SEO", "slug": "seo", "count": 3},
+            ]
+        )
+        pub = WordPressPublisher(publisher._db, http_client=http)
+        cats = pub.get_categories(connection_id)
+        assert isinstance(cats, list)
+        assert len(cats) == 2
+        assert cats[0]["name"] == "Blog"
+        assert cats[0]["id"] == 1
+
+    def test_missing_connection_returns_empty_list(
+        self, publisher: WordPressPublisher
+    ) -> None:
+        cats = publisher.get_categories(99999)
+        assert cats == []
+
+    def test_http_error_returns_empty_list(
+        self, db: Database, connection_id: int
+    ) -> None:
+        http = _make_mock_http(status_code=401)
+        http.get.return_value.json.return_value = []
+        pub = WordPressPublisher(db, http_client=http)
+        # re-add connection since db is fresh
+        cid = pub.add_connection("https://example.com", "admin", "secret")
+        cats = pub.get_categories(cid)
+        assert isinstance(cats, list)
+
+
+class TestGetTags:
+    def test_returns_list_of_dicts(
+        self, publisher: WordPressPublisher, connection_id: int
+    ) -> None:
+        http = _make_mock_http(
+            json_data=[
+                {"id": 10, "name": "Python", "slug": "python", "count": 2},
+            ]
+        )
+        pub = WordPressPublisher(publisher._db, http_client=http)
+        tags = pub.get_tags(connection_id)
+        assert isinstance(tags, list)
+        assert tags[0]["slug"] == "python"
+
+    def test_missing_connection_returns_empty_list(
+        self, publisher: WordPressPublisher
+    ) -> None:
+        tags = publisher.get_tags(99999)
+        assert tags == []
+
+
+# ---------------------------------------------------------------------------
+# batch_publish_staggered
+# ---------------------------------------------------------------------------
+
+
+class TestBatchPublishStaggered:
+    def _make_publisher_with_future_response(
+        self, db: Database
+    ) -> "tuple[WordPressPublisher, int, int, int]":
+        http = _make_mock_http(
+            status_code=201,
+            json_data={"id": 99, "link": "https://wp.com/p/", "status": "future"},
+        )
+        pub = WordPressPublisher(db, http_client=http)
+        conn_id = pub.add_connection("https://example.com", "admin", "secret")
+        pid1 = db.create_page("blog", "Page A", "page a")
+        pid2 = db.create_page("blog", "Page B", "page b")
+        return pub, conn_id, pid1, pid2
+
+    def test_returns_result_per_page(self, db: Database) -> None:
+        pub, conn_id, pid1, pid2 = self._make_publisher_with_future_response(db)
+        pages = [
+            {"page_id": pid1, "title": "A", "content": "<p>A</p>"},
+            {"page_id": pid2, "title": "B", "content": "<p>B</p>"},
+        ]
+        results = pub.batch_publish_staggered(
+            pages, conn_id, start_date="2025-07-01", interval_days=1
+        )
+        assert len(results) == 2
+
+    def test_scheduled_dates_are_staggered(self, db: Database) -> None:
+        pub, conn_id, pid1, pid2 = self._make_publisher_with_future_response(db)
+        pages = [
+            {"page_id": pid1, "title": "A", "content": "<p>A</p>"},
+            {"page_id": pid2, "title": "B", "content": "<p>B</p>"},
+        ]
+        results = pub.batch_publish_staggered(
+            pages, conn_id, start_date="2025-07-01", interval_days=2
+        )
+        dates = [r["scheduled_date"] for r in results]
+        assert dates[0].startswith("2025-07-01")
+        assert dates[1].startswith("2025-07-03")
+
+    def test_publish_hour_reflected_in_scheduled_date(self, db: Database) -> None:
+        pub, conn_id, pid1, _ = self._make_publisher_with_future_response(db)
+        pages = [{"page_id": pid1, "title": "A", "content": "<p>A</p>"}]
+        results = pub.batch_publish_staggered(
+            pages, conn_id, start_date="2025-07-01", publish_hour=14
+        )
+        assert "T14:00:00" in results[0]["scheduled_date"]
+
+    def test_invalid_start_date_falls_back_gracefully(self, db: Database) -> None:
+        pub, conn_id, pid1, _ = self._make_publisher_with_future_response(db)
+        pages = [{"page_id": pid1, "title": "A", "content": "<p>A</p>"}]
+        # Should not raise; falls back to today
+        results = pub.batch_publish_staggered(
+            pages, conn_id, start_date="not-a-date"
+        )
+        assert len(results) == 1
+
+    def test_each_result_has_scheduled_date_key(self, db: Database) -> None:
+        pub, conn_id, pid1, pid2 = self._make_publisher_with_future_response(db)
+        pages = [
+            {"page_id": pid1, "title": "A", "content": "<p>A</p>"},
+            {"page_id": pid2, "title": "B", "content": "<p>B</p>"},
+        ]
+        results = pub.batch_publish_staggered(
+            pages, conn_id, start_date="2025-07-01"
+        )
+        for r in results:
+            assert "scheduled_date" in r
