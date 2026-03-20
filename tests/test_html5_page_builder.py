@@ -239,7 +239,9 @@ class TestBuildSchemaMarkup:
 
     def test_schema_context_is_schema_org(self, builder: HTML5PageBuilder, base_config: dict) -> None:
         result = builder._build_schema_markup(base_config)
-        assert "https://schema.org" in result
+        raw_json = result.replace('<script type="application/ld+json">', "").replace("</script>", "").strip()
+        data = json.loads(raw_json)
+        assert data["@context"] == "https://schema.org"
 
     def test_service_layout_produces_service_schema(self, builder: HTML5PageBuilder) -> None:
         config = {

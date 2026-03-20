@@ -353,7 +353,11 @@ with tab_builder:
                     "tone": pb_tone,
                     "cta_text": pb_cta_text,
                     "cta_url": pb_cta_url or "#contact",
-                    "canonical_url": pb_canonical or f"https://example.com/{pb_keyword.replace(' ', '-').lower() if pb_keyword else 'page'}",
+                    "canonical_url": pb_canonical or (
+                        f"https://example.com/{pb_keyword.replace(' ', '-').lower()}"
+                        if pb_keyword
+                        else "https://example.com/page"
+                    ),
                     "color_scheme": pb_color,
                     "sections": selected_sections,
                 }
@@ -1922,8 +1926,15 @@ with tab_wp:
         st.info("No publishing records yet.")
     else:
         st.write(f"**{len(all_wp_posts)} publishing record(s):**")
+        _status_icons = {
+            "published": "✅",
+            "publish": "✅",
+            "draft": "📝",
+            "scheduled": "⏰",
+            "future": "⏰",
+        }
         for rec in all_wp_posts[:20]:
-            status_icon = "✅" if rec["status"] in ("published", "publish") else "📝" if rec["status"] == "draft" else "⏰" if rec["status"] in ("scheduled", "future") else "❌"
+            status_icon = _status_icons.get(rec["status"], "❌")
             col1, col2, col3 = st.columns([1, 3, 2])
             col1.write(f"{status_icon} {rec['status']}")
             col2.write(f"Page {rec.get('page_id', '—')} → {rec.get('post_url') or '—'}")
