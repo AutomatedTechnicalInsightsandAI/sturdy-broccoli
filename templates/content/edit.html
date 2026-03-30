@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+{% block title %}Edit Content — Sturdy Broccoli{% endblock %}
+{% block page_title %}Edit Content{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-header"><h6 class="mb-0">Edit: {{ page.title }}</h6></div>
+  <div class="card-body">
+    <form method="POST">
+      <div class="mb-3">
+        <label class="form-label">Title</label>
+        <input type="text" name="title" class="form-control" value="{{ page.title }}" required>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Meta Description</label>
+        <input type="text" name="meta_description" class="form-control" value="{{ page.meta_description or '' }}" maxlength="300">
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Status</label>
+        <select name="status" class="form-select">
+          {% for s in ['draft','review','published','archived'] %}
+          <option value="{{ s }}" {% if page.status == s %}selected{% endif %}>{{ s|title }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Content</label>
+        <textarea name="content" class="form-control font-monospace" rows="20">{{ page.content or '' }}</textarea>
+      </div>
+      <div class="d-flex gap-2">
+        <button type="submit" class="btn btn-primary">Save Changes</button>
+        <a href="{{ url_for('content.view_content', content_id=page.id) }}" class="btn btn-outline-secondary">Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

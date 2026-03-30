@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+{% block title %}Lead Forms — Sturdy Broccoli{% endblock %}
+{% block page_title %}Lead Forms{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header"><h6 class="mb-0">Projects with Lead Forms</h6></div>
+      <div class="card-body p-0">
+        {% if projects %}
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead><tr><th>Project</th><th>Client</th><th></th></tr></thead>
+            <tbody>
+              {% for p in projects %}
+              <tr>
+                <td>{{ p.name }}</td>
+                <td class="text-muted">{{ p.client.name }}</td>
+                <td>
+                  <a href="{{ url_for('forms.submissions', project_id=p.id) }}" class="btn btn-sm btn-outline-primary">
+                    View Submissions
+                  </a>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="py-4 text-center text-muted">No projects yet.</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

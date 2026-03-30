@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+{% block title %}GBP Post History — Sturdy Broccoli{% endblock %}
+{% block page_title %}GBP Post History{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-header"><h6 class="mb-0">All GBP Posts</h6></div>
+  {% if posts %}
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead><tr><th>Content</th><th>CTA</th><th>Status</th><th>Scheduled</th><th>Created</th></tr></thead>
+        <tbody>
+          {% for post in posts %}
+          <tr>
+            <td class="small">{{ post.content_text[:80] }}…</td>
+            <td class="small text-muted">{{ post.cta or '—' }}</td>
+            <td>
+              <span class="badge bg-{% if post.status == 'posted' %}success{% else %}warning{% endif %}">
+                {{ post.status }}
+              </span>
+            </td>
+            <td class="text-muted small">{{ post.scheduled_at.strftime('%b %d, %H:%M') if post.scheduled_at else '—' }}</td>
+            <td class="text-muted small">{{ post.created_at.strftime('%b %d, %Y') }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% else %}
+  <div class="card-body text-center text-muted py-4">No posts yet.</div>
+  {% endif %}
+</div>
+<div class="mt-3">
+  <a href="{{ url_for('gbp.index') }}" class="btn btn-outline-secondary">Back</a>
+</div>
+{% endblock %}

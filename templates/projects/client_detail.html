@@ -1,0 +1,55 @@
+{% extends 'base.html' %}
+{% block title %}{{ client.name }} — Sturdy Broccoli{% endblock %}
+{% block page_title %}Client: {{ client.name }}{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+  <div class="col-md-4">
+    <div class="card">
+      <div class="card-header"><h6 class="mb-0">Client Info</h6></div>
+      <div class="card-body">
+        <dl class="row mb-0">
+          <dt class="col-5 text-muted">Type</dt><dd class="col-7">{{ client.business_type or '—' }}</dd>
+          <dt class="col-5 text-muted">Niche</dt><dd class="col-7">{{ client.niche or '—' }}</dd>
+          <dt class="col-5 text-muted">Location</dt><dd class="col-7">{{ client.location or '—' }}</dd>
+          <dt class="col-5 text-muted">Phone</dt><dd class="col-7">{{ client.phone or '—' }}</dd>
+          <dt class="col-5 text-muted">Website</dt>
+          <dd class="col-7">
+            {% if client.website %}<a href="{{ client.website }}" target="_blank">{{ client.website }}</a>{% else %}—{% endif %}
+          </dd>
+          <dt class="col-5 text-muted">Keywords</dt><dd class="col-7 small">{{ client.target_keywords or '—' }}</dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-8">
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h6 class="mb-0">Projects</h6>
+        <a href="{{ url_for('projects.new_project') }}" class="btn btn-sm btn-primary">New Project</a>
+      </div>
+      {% if client.projects %}
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead><tr><th>Name</th><th>Pages</th><th>WP</th><th></th></tr></thead>
+            <tbody>
+              {% for p in client.projects %}
+              <tr>
+                <td><a href="{{ url_for('projects.project_detail', project_id=p.id) }}" class="text-decoration-none">{{ p.name }}</a></td>
+                <td>{{ p.content_pages|length }}</td>
+                <td>{% if p.wp_url %}<i class="bi bi-check-circle text-success"></i>{% else %}—{% endif %}</td>
+                <td><a href="{{ url_for('projects.project_detail', project_id=p.id) }}" class="btn btn-sm btn-outline-secondary">Open</a></td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      {% else %}
+      <div class="card-body text-center text-muted py-4">No projects yet.</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

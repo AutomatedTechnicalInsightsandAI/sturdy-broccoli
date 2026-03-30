@@ -1,0 +1,68 @@
+{% extends 'base.html' %}
+{% block title %}SEO Audit — Sturdy Broccoli{% endblock %}
+{% block page_title %}SEO Audit{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-header"><h6 class="mb-0">Run New Audit</h6></div>
+      <div class="card-body">
+        <form method="POST" action="{{ url_for('audit.run_audit') }}">
+          <div class="mb-3">
+            <label class="form-label">Domain</label>
+            <input type="text" name="domain" class="form-control" placeholder="example.com" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Project</label>
+            <select name="project_id" class="form-select" required>
+              <option value="">Select project…</option>
+              {% for p in projects %}
+              <option value="{{ p.id }}">{{ p.client.name }} — {{ p.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <button type="submit" class="btn btn-primary w-100">
+            <i class="bi bi-search me-1"></i>Run Audit
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-header"><h6 class="mb-0">Recent Audits</h6></div>
+      {% if audits %}
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead><tr><th>Domain</th><th>Score</th><th>Date</th><th></th></tr></thead>
+            <tbody>
+              {% for audit in audits %}
+              <tr>
+                <td>{{ audit.domain }}</td>
+                <td>
+                  <span class="fw-bold text-{% if audit.audit_score >= 70 %}success{% elif audit.audit_score >= 40 %}warning{% else %}danger{% endif %}">
+                    {{ audit.audit_score|int }}/100
+                  </span>
+                </td>
+                <td class="text-muted small">{{ audit.created_at.strftime('%b %d, %Y') }}</td>
+                <td>
+                  <a href="{{ url_for('audit.audit_detail', audit_id=audit.id) }}" class="btn btn-sm btn-outline-secondary">View</a>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      {% else %}
+      <div class="card-body text-center text-muted py-4">
+        No audits yet.
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
