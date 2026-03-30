@@ -41,12 +41,23 @@
               <label class="form-label">Target Keywords</label>
               <input type="text" name="target_keywords" class="form-control" placeholder="e.g., emergency plumber Austin, water heater repair">
             </div>
+            <div class="row g-2 mb-3">
+              <div class="col">
+                <label class="form-label">Phone</label>
+                <input type="text" name="phone" class="form-control" placeholder="e.g., (941) 555-0123">
+              </div>
+              <div class="col">
+                <label class="form-label">Website</label>
+                <input type="text" name="website" class="form-control" placeholder="e.g., https://example.com">
+              </div>
+            </div>
           </div>
           <div class="row g-2 mb-3">
             <div class="col">
               <label class="form-label">Content Type</label>
-              <select name="content_type" class="form-select">
-                <option value="landing_page">Landing Page</option>
+              <select name="content_type" class="form-select" id="contentTypeSelect">
+                <option value="html5_landing_page">HTML5 Landing Page ✨</option>
+                <option value="landing_page">Landing Page (HTML fragment)</option>
                 <option value="blog" selected>Blog Post</option>
                 <option value="article">Article</option>
                 <option value="hub_page">Hub Page</option>
@@ -63,6 +74,48 @@
               </select>
             </div>
           </div>
+
+          <!-- HTML5 Landing Page extra fields -->
+          <div id="html5Fields">
+            <hr class="my-3">
+            <h6 class="text-muted small mb-3">HTML5 Landing Page Options</h6>
+            <div class="mb-3">
+              <label class="form-label">Client Photo URL <span class="text-muted small">(optional)</span></label>
+              <input type="text" name="client_photo" class="form-control" placeholder="https://example.com/photo.jpg">
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Video Background URL <span class="text-muted small">(optional MP4)</span></label>
+              <input type="text" name="video_bg" class="form-control" placeholder="https://example.com/background.mp4">
+            </div>
+            <div class="mb-3">
+              <label class="form-label">YouTube Shorts URLs <span class="text-muted small">(one per line, optional)</span></label>
+              <textarea name="youtube_shorts" class="form-control" rows="3" placeholder="https://youtube.com/shorts/H1O-GqFywTo&#10;https://youtube.com/shorts/3pHiWhzIAwI"></textarea>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">YouTube Subscriber Count <span class="text-muted small">(optional)</span></label>
+              <input type="text" name="subscriber_count" class="form-control" placeholder="e.g., 147k">
+            </div>
+            <div class="row g-2 mb-3">
+              <div class="col">
+                <label class="form-label">Color Scheme</label>
+                <select name="color_scheme" class="form-select">
+                  <option value="dark_barbershop" selected>Dark Barbershop</option>
+                  <option value="corporate_blue">Corporate Blue</option>
+                  <option value="modern_green">Modern Green</option>
+                  <option value="medical_white">Medical White</option>
+                </select>
+              </div>
+              <div class="col">
+                <label class="form-label">Page Layout</label>
+                <select name="page_layout" class="form-select">
+                  <option value="landing_page" selected>Landing Page</option>
+                  <option value="hero_features">Hero + Features</option>
+                  <option value="local_seo_hub">Local SEO Hub</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
           <button type="submit" name="action" value="generate" class="btn btn-primary w-100">
             <i class="bi bi-magic me-1"></i>Generate Content
           </button>
@@ -90,6 +143,14 @@
           <input type="hidden" name="target_keywords" value="{{ request.form.get('target_keywords', '') }}">
           <input type="hidden" name="content_type" value="{{ request.form.get('content_type', '') }}">
           <input type="hidden" name="tone" value="{{ request.form.get('tone', '') }}">
+          <input type="hidden" name="phone" value="{{ request.form.get('phone', '') }}">
+          <input type="hidden" name="website" value="{{ request.form.get('website', '') }}">
+          <input type="hidden" name="youtube_shorts" value="{{ request.form.get('youtube_shorts', '') }}">
+          <input type="hidden" name="subscriber_count" value="{{ request.form.get('subscriber_count', '') }}">
+          <input type="hidden" name="client_photo" value="{{ request.form.get('client_photo', '') }}">
+          <input type="hidden" name="video_bg" value="{{ request.form.get('video_bg', '') }}">
+          <input type="hidden" name="color_scheme" value="{{ request.form.get('color_scheme', '') }}">
+          <input type="hidden" name="page_layout" value="{{ request.form.get('page_layout', '') }}">
           <div class="mb-3">
             <label class="form-label">Page Title</label>
             <input type="text" name="title" class="form-control" placeholder="Enter a title to save">
@@ -132,5 +193,21 @@ function copyContent() {
     navigator.clipboard.writeText(ta.value);
   }
 }
+
+// Show/hide HTML5 extra fields based on content type selection
+const contentTypeSelect = document.getElementById('contentTypeSelect');
+const html5Fields = document.getElementById('html5Fields');
+
+function toggleHtml5Fields() {
+  if (contentTypeSelect && html5Fields) {
+    html5Fields.style.display = contentTypeSelect.value === 'html5_landing_page' ? '' : 'none';
+  }
+}
+
+if (contentTypeSelect) {
+  contentTypeSelect.addEventListener('change', toggleHtml5Fields);
+  toggleHtml5Fields();
+}
 </script>
 {% endblock %}
+

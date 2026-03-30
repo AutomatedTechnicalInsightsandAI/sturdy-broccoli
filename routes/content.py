@@ -1,6 +1,6 @@
 """Content generation and management routes."""
 from datetime import datetime
-from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app
+from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app, Response
 from flask_login import login_required, current_user
 from extensions import db
 from models import Client, Project, ContentPage
@@ -28,6 +28,16 @@ def generate():
         content_type = request.form.get('content_type', 'article')
         tone = request.form.get('tone', 'professional')
 
+        # New optional HTML5 landing page fields
+        phone = (client.phone if client else None) or request.form.get('phone', '').strip()
+        website = (client.website if client else None) or request.form.get('website', '').strip()
+        youtube_shorts = request.form.get('youtube_shorts', '').strip()
+        subscriber_count = request.form.get('subscriber_count', '').strip()
+        client_photo = request.form.get('client_photo', '').strip()
+        video_bg = request.form.get('video_bg', '').strip()
+        color_scheme = request.form.get('color_scheme', 'dark_barbershop')
+        page_layout = request.form.get('page_layout', 'landing_page')
+
         api_key = current_app.config.get('OPENAI_API_KEY', '')
         if not api_key:
             flash('OpenAI API key not configured.', 'warning')
@@ -43,6 +53,14 @@ def generate():
                 content_type=content_type,
                 tone=tone,
                 api_key=api_key,
+                phone=phone,
+                website=website,
+                youtube_shorts=youtube_shorts,
+                subscriber_count=subscriber_count,
+                client_photo=client_photo,
+                video_bg=video_bg,
+                color_scheme=color_scheme,
+                page_layout=page_layout,
             )
         except Exception as exc:
             flash(f'Content generation failed: {exc}', 'danger')
@@ -142,6 +160,19 @@ def delete_content(content_id):
     db.session.commit()
     flash('Content deleted.', 'info')
     return redirect(url_for('content.library'))
+
+
+@content_bp.route('/<int:content_id>/preview')
+@login_required
+def preview_content(content_id):
+    """Render the raw HTML content directly in the browser (full page, no app chrome)."""
+    page = _get_content_or_404(content_id)
+    html = page.content or ''
+    # If the stored content is already a full HTML document, serve it directly.
+    # Otherwise wrap it in a minimal page so the preview still works.
+    if '<!DOCTYPE' not in html and '<html' not in html:
+        html = f'<!DOCTYPE html><html><head><meta charset="utf-8"></head><body>{html}</body></html>'
+    return Response(html, mimetype='text/html')
 
 
 def _get_content_or_404(content_id):
