@@ -35,9 +35,15 @@ def keyword_research(seed_keyword: str, location: str, api_key: str) -> list:
 
 def site_audit(domain: str, api_key: str) -> list:
     """Return list of SEO issue dicts for a domain."""
+    import re
     issues = []
+    # Validate domain: allow only safe hostname characters to prevent SSRF
+    clean_domain = re.sub(r'^https?://', '', domain.strip()).split('/')[0]
+    if not re.match(r'^[A-Za-z0-9.\-]+$', clean_domain):
+        issues.append({'type': 'Invalid Domain', 'detail': 'Domain contains invalid characters', 'severity': 'critical'})
+        return issues
+    url = f'https://{clean_domain}'
     try:
-        url = f'https://{domain.lstrip("https://").lstrip("http://")}'
         resp = requests.get(url, timeout=15, allow_redirects=True)
         if resp.status_code >= 400:
             issues.append({'type': 'HTTP Error', 'detail': f'Status {resp.status_code}', 'severity': 'critical'})

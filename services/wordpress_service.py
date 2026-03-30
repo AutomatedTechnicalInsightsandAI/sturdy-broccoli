@@ -53,7 +53,7 @@ def update_post(
     """Update an existing WordPress post."""
     endpoint = wp_url.rstrip('/') + f'/wp-json/wp/v2/posts/{post_id}'
     payload = {'title': title, 'content': content, 'status': status}
-    resp = requests.post(
+    resp = requests.put(
         endpoint,
         json=payload,
         auth=HTTPBasicAuth(username, app_password),
