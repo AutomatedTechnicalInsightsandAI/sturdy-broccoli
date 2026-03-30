@@ -19,6 +19,12 @@
       <i class="bi bi-graph-up me-1"></i>Analyze On-Page
     </button>
   </form>
+  <a href="{{ url_for('content.preview_content', content_id=page.id) }}" target="_blank" class="btn btn-outline-primary">
+    <i class="bi bi-box-arrow-up-right me-1"></i>View Full Page
+  </a>
+  <button class="btn btn-outline-secondary" onclick="downloadHtml()">
+    <i class="bi bi-download me-1"></i>Download HTML
+  </button>
   <form method="POST" action="{{ url_for('content.delete_content', content_id=page.id) }}"
         onsubmit="return confirm('Delete this page?')" class="ms-auto">
     <button type="submit" class="btn btn-outline-danger">
@@ -30,9 +36,25 @@
 <div class="row g-4">
   <div class="col-lg-8">
     <div class="card">
-      <div class="card-header"><h6 class="mb-0">{{ page.title }}</h6></div>
-      <div class="card-body">
-        <div class="content-preview">{{ page.content|safe }}</div>
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h6 class="mb-0">{{ page.title }}</h6>
+        <div class="btn-group btn-group-sm" role="group">
+          <button type="button" class="btn btn-outline-secondary active" id="btnPreview" onclick="showPreview()">Preview</button>
+          <button type="button" class="btn btn-outline-secondary" id="btnSource" onclick="showSource()">Source</button>
+        </div>
+      </div>
+      <div class="card-body p-0" id="previewPane">
+        {% set is_html5 = page.content and ('<!DOCTYPE' in page.content or '<html' in page.content) %}
+        {% if is_html5 %}
+        <iframe src="{{ url_for('content.preview_content', content_id=page.id) }}"
+                style="width:100%; height:600px; border:none;"
+                title="Page preview"></iframe>
+        {% else %}
+        <div class="p-3 content-preview">{{ page.content|safe }}</div>
+        {% endif %}
+      </div>
+      <div class="card-body" id="sourcePane" style="display:none;">
+        <pre class="small text-muted mb-0" style="white-space:pre-wrap; max-height:600px; overflow:auto;">{{ page.content }}</pre>
       </div>
     </div>
   </div>
@@ -85,3 +107,35 @@
   </div>
 </div>
 {% endblock %}
+
+{% block scripts %}
+<script>
+function showPreview() {
+  document.getElementById('previewPane').style.display = '';
+  document.getElementById('sourcePane').style.display = 'none';
+  document.getElementById('btnPreview').classList.add('active');
+  document.getElementById('btnSource').classList.remove('active');
+}
+
+function showSource() {
+  document.getElementById('previewPane').style.display = 'none';
+  document.getElementById('sourcePane').style.display = '';
+  document.getElementById('btnSource').classList.add('active');
+  document.getElementById('btnPreview').classList.remove('active');
+}
+
+function downloadHtml() {
+  const content = {{ page.content | tojson }};
+  const blob = new Blob([content], { type: 'text/html' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  // Sanitize title for use as a filename
+  const safeName = {{ page.title | tojson }}.replace(/[^a-zA-Z0-9_\-. ]/g, '_').trim() || 'page';
+  a.download = safeName + '.html';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+</script>
+{% endblock %}
+
