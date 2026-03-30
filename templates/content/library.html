@@ -1,0 +1,70 @@
+{% extends 'base.html' %}
+{% block title %}Page Library — Sturdy Broccoli{% endblock %}
+{% block page_title %}Page Library{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between mb-3">
+  <div></div>
+  <a href="{{ url_for('content.generate') }}" class="btn btn-primary">
+    <i class="bi bi-plus me-1"></i>Generate Content
+  </a>
+</div>
+
+<div class="card">
+  <div class="card-body p-0">
+    {% if pages %}
+    <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead>
+          <tr>
+            <th>Title</th><th>Project</th><th>Type</th><th>Status</th><th>Score</th><th>Date</th><th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for page in pages %}
+          <tr>
+            <td>
+              <a href="{{ url_for('content.view_content', content_id=page.id) }}" class="text-decoration-none">
+                {{ page.title[:60] }}{% if page.title|length > 60 %}…{% endif %}
+              </a>
+            </td>
+            <td class="text-muted small">{{ page.project.name }}</td>
+            <td><span class="badge bg-secondary">{{ page.content_type }}</span></td>
+            <td>
+              <span class="badge bg-{% if page.status == 'published' %}success{% elif page.status == 'draft' %}secondary{% else %}warning{% endif %}">
+                {{ page.status }}
+              </span>
+            </td>
+            <td>
+              {% if page.quality_score %}
+              <span class="text-{% if page.quality_score >= 70 %}success{% elif page.quality_score >= 40 %}warning{% else %}danger{% endif %}">
+                {{ page.quality_score|int }}
+              </span>
+              {% else %}—{% endif %}
+            </td>
+            <td class="text-muted small">{{ page.created_at.strftime('%b %d, %Y') }}</td>
+            <td>
+              <div class="d-flex gap-1">
+                <a href="{{ url_for('content.view_content', content_id=page.id) }}" class="btn btn-sm btn-outline-secondary">View</a>
+                <form method="POST" action="{{ url_for('content.delete_content', content_id=page.id) }}"
+                      onsubmit="return confirm('Delete this page?')">
+                  <button type="submit" class="btn btn-sm btn-outline-danger">
+                    <i class="bi bi-trash"></i>
+                  </button>
+                </form>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="py-5 text-center text-muted">
+      <i class="bi bi-collection fs-1 d-block mb-3"></i>
+      No content yet. <a href="{{ url_for('content.generate') }}">Generate your first page!</a>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

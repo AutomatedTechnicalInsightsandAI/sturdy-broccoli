@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+{% block title %}Saved Keywords — Sturdy Broccoli{% endblock %}
+{% block page_title %}Saved Keyword Sets{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <h6 class="mb-0">Saved Keyword Sets</h6>
+    <a href="{{ url_for('keywords.research') }}" class="btn btn-sm btn-primary">New Research</a>
+  </div>
+  {% if keyword_sets %}
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead><tr><th>Seed Keyword</th><th>Location</th><th>Keywords</th><th>Date</th></tr></thead>
+        <tbody>
+          {% for ks in keyword_sets %}
+          <tr>
+            <td>{{ ks.seed_keyword }}</td>
+            <td class="text-muted">{{ ks.location or '—' }}</td>
+            <td>
+              {% if ks.keywords_data %}
+              {% set kws = ks.keywords_data | from_json %}
+              {{ kws | length }} keyword(s)
+              {% else %}—{% endif %}
+            </td>
+            <td class="text-muted small">{{ ks.created_at.strftime('%b %d, %Y') }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% else %}
+  <div class="card-body text-center text-muted py-4">No saved keyword sets.</div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Sturdy Broccoli SEO{% endblock %}</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+  <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+</head>
+<body>
+{% if current_user.is_authenticated %}
+<div class="d-flex">
+  <!-- Sidebar -->
+  <nav id="sidebar" class="sidebar d-flex flex-column flex-shrink-0 p-3">
+    <a href="{{ url_for('dashboard.index') }}" class="sidebar-brand d-flex align-items-center mb-3 mb-md-0 me-md-auto text-decoration-none">
+      <i class="bi bi-bar-chart-fill me-2 fs-4"></i>
+      <span class="fw-bold fs-5">Sturdy Broccoli</span>
+    </a>
+    <hr>
+    <ul class="nav nav-pills flex-column mb-auto">
+      <li class="nav-item">
+        <a href="{{ url_for('dashboard.index') }}" class="nav-link {% if request.endpoint == 'dashboard.index' %}active{% endif %}">
+          <i class="bi bi-speedometer2 me-2"></i>Dashboard
+        </a>
+      </li>
+      <li class="nav-item">
+        <a href="{{ url_for('projects.list_projects') }}" class="nav-link {% if 'projects' in request.endpoint %}active{% endif %}">
+          <i class="bi bi-people me-2"></i>Clients &amp; Projects
+        </a>
+      </li>
+      <li class="nav-item">
+        <a href="{{ url_for('content.generate') }}" class="nav-link {% if request.endpoint == 'content.generate' %}active{% endif %}">
+          <i class="bi bi-magic me-2"></i>Content Generator
+        </a>
+      </li>
+      <li class="nav-item">
+        <a href="{{ url_for('content.library') }}" class="nav-link {% if request.endpoint == 'content.library' %}active{% endif %}">
+          <i class="bi bi-collection me-2"></i>Page Library
+        </a>
+      </li>
+      <li class="nav-item">
+        <a href="{{ url_for('wordpress.index') }}" class="nav-link {% if 'wordpress' in request.endpoint %}active{% endif %}">
+          <i class="bi bi-wordpress me-2"></i>WordPress
+        </a>
+      </li>
+      <li class="nav-item">
+        <a href="{{ url_for('audit.dashboard') }}" class="nav-link {% if 'audit' in request.endpoint %}active{% endif %}">
+          <i class="bi bi-search me-2"></i>SEO Audit
+        </a>
+      </li>
+      <li class="nav-item">
+        <a href="{{ url_for('keywords.research') }}" class="nav-link {% if 'keywords' in request.endpoint %}active{% endif %}">
+          <i class="bi bi-key me-2"></i>Keywords
+        </a>
+      </li>
+      <li class="nav-item">
+        <a href="{{ url_for('backlinks.tracker') }}" class="nav-link {% if 'backlinks' in request.endpoint %}active{% endif %}">
+          <i class="bi bi-link-45deg me-2"></i>Backlinks
+        </a>
+      </li>
+      <li class="nav-item">
+        <a href="{{ url_for('onpage.index') }}" class="nav-link {% if 'onpage' in request.endpoint %}active{% endif %}">
+          <i class="bi bi-file-earmark-text me-2"></i>On-Page Optimizer
+        </a>
+      </li>
+      <li class="nav-item">
+        <a href="{{ url_for('calendar.view') }}" class="nav-link {% if 'calendar' in request.endpoint %}active{% endif %}">
+          <i class="bi bi-calendar3 me-2"></i>Content Calendar
+        </a>
+      </li>
+      <li class="nav-item">
+        <a href="{{ url_for('local_seo.index') }}" class="nav-link {% if 'local_seo' in request.endpoint %}active{% endif %}">
+          <i class="bi bi-geo-alt me-2"></i>Local SEO
+        </a>
+      </li>
+      <li class="nav-item">
+        <a href="{{ url_for('forms.index') }}" class="nav-link {% if 'forms' in request.endpoint %}active{% endif %}">
+          <i class="bi bi-ui-checks me-2"></i>Lead Forms
+        </a>
+      </li>
+      <li class="nav-item">
+        <a href="{{ url_for('gbp.index') }}" class="nav-link {% if 'gbp' in request.endpoint %}active{% endif %}">
+          <i class="bi bi-google me-2"></i>GBP Posts
+        </a>
+      </li>
+    </ul>
+    <hr>
+    <div class="sidebar-user">
+      <i class="bi bi-person-circle me-2"></i>
+      <span class="text-light">{{ current_user.username }}</span>
+      <a href="{{ url_for('auth.logout') }}" class="btn btn-sm btn-outline-secondary ms-2">
+        <i class="bi bi-box-arrow-right"></i>
+      </a>
+    </div>
+  </nav>
+
+  <!-- Main content -->
+  <main class="flex-grow-1 p-4 main-content">
+    <!-- Top navbar -->
+    <nav class="navbar navbar-expand-lg mb-4 top-navbar rounded">
+      <div class="container-fluid">
+        <span class="navbar-brand mb-0 h1">{% block page_title %}Dashboard{% endblock %}</span>
+        <div class="ms-auto d-flex align-items-center gap-2">
+          <span class="text-muted small">{{ current_user.email }}</span>
+          <a href="{{ url_for('auth.logout') }}" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-box-arrow-right me-1"></i>Logout
+          </a>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Flash messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+          </div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    {% block content %}{% endblock %}
+  </main>
+</div>
+{% else %}
+  <main class="container">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="alert alert-{{ category }} alert-dismissible fade show mt-3" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+          </div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+    {% block content_unauth %}{% endblock %}
+  </main>
+{% endif %}
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="{{ url_for('static', filename='js/main.js') }}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

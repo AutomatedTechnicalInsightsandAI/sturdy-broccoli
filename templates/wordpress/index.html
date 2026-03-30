@@ -1,0 +1,74 @@
+{% extends 'base.html' %}
+{% block title %}WordPress — Sturdy Broccoli{% endblock %}
+{% block page_title %}WordPress Connections{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+  <div class="col-lg-5">
+    <div class="card">
+      <div class="card-header"><h6 class="mb-0">Add / Update Connection</h6></div>
+      <div class="card-body">
+        <form method="POST" action="{{ url_for('wordpress.connect') }}">
+          <div class="mb-3">
+            <label class="form-label">Project</label>
+            <select name="project_id" class="form-select" required>
+              <option value="">Select project…</option>
+              {% for p in projects %}
+              <option value="{{ p.id }}">{{ p.client.name }} — {{ p.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">WordPress URL</label>
+            <input type="url" name="wp_url" class="form-control" placeholder="https://yoursite.com">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Username</label>
+            <input type="text" name="wp_username" class="form-control">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Application Password</label>
+            <input type="password" name="wp_app_password" class="form-control">
+          </div>
+          <button type="submit" class="btn btn-primary w-100">Save Connection</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-7">
+    <div class="card">
+      <div class="card-header"><h6 class="mb-0">Connected Projects</h6></div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead><tr><th>Project</th><th>URL</th><th>Status</th><th></th></tr></thead>
+            <tbody>
+              {% for p in projects %}
+              <tr>
+                <td>{{ p.name }}</td>
+                <td class="small text-muted">{{ p.wp_url or '—' }}</td>
+                <td>
+                  {% if p.wp_url %}
+                  <span class="badge bg-success">Configured</span>
+                  {% else %}
+                  <span class="badge bg-secondary">Not set</span>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if p.wp_url %}
+                  <form method="POST" action="{{ url_for('wordpress.test_wp', project_id=p.id) }}">
+                    <button type="submit" class="btn btn-sm btn-outline-info">Test</button>
+                  </form>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

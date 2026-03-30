@@ -1,0 +1,81 @@
+{% extends 'base.html' %}
+{% block title %}Content Calendar — Sturdy Broccoli{% endblock %}
+{% block page_title %}Content Calendar{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-header"><h6 class="mb-0">Schedule Content</h6></div>
+      <div class="card-body">
+        <form method="POST" action="{{ url_for('calendar.schedule') }}">
+          <div class="mb-3">
+            <label class="form-label">Project</label>
+            <select name="project_id" class="form-select" required>
+              <option value="">Select project…</option>
+              {% for p in projects %}
+              <option value="{{ p.id }}">{{ p.client.name }} — {{ p.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Content Page</label>
+            <select name="content_page_id" class="form-select" required>
+              <option value="">Select page…</option>
+              {% for page in pages %}
+              <option value="{{ page.id }}">{{ page.title[:50] }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Scheduled Date &amp; Time</label>
+            <input type="datetime-local" name="scheduled_at" class="form-control" required>
+          </div>
+          <button type="submit" class="btn btn-primary w-100">Schedule</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-header"><h6 class="mb-0">Scheduled Content</h6></div>
+      {% if schedules %}
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead><tr><th>Content</th><th>Project</th><th>Scheduled</th><th>Status</th><th></th></tr></thead>
+            <tbody>
+              {% for s in schedules %}
+              <tr>
+                <td>
+                  <a href="{{ url_for('content.view_content', content_id=s.content_page.id) }}" class="text-decoration-none">
+                    {{ s.content_page.title[:40] }}…
+                  </a>
+                </td>
+                <td class="text-muted small">{{ s.project.name }}</td>
+                <td class="small">{{ s.scheduled_at.strftime('%b %d, %Y %H:%M') }}</td>
+                <td><span class="badge bg-{% if s.status == 'deployed' %}success{% elif s.status == 'scheduled' %}primary{% else %}secondary{% endif %}">{{ s.status }}</span></td>
+                <td>
+                  <form method="POST" action="{{ url_for('calendar.delete_schedule', schedule_id=s.id) }}"
+                        onsubmit="return confirm('Remove?')">
+                    <button type="submit" class="btn btn-sm btn-outline-danger">
+                      <i class="bi bi-trash"></i>
+                    </button>
+                  </form>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      {% else %}
+      <div class="card-body text-center text-muted py-4">
+        No scheduled content yet.
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

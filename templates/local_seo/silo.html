@@ -1,0 +1,72 @@
+{% extends 'base.html' %}
+{% block title %}Local SEO Silo — Sturdy Broccoli{% endblock %}
+{% block page_title %}Local SEO Silo Generator{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+  <div class="col-lg-5">
+    <div class="card">
+      <div class="card-header"><h6 class="mb-0">Generate City Silo Pages</h6></div>
+      <div class="card-body">
+        <form method="POST" action="{{ url_for('local_seo.generate') }}">
+          <div class="mb-3">
+            <label class="form-label">Client</label>
+            <select name="client_id" class="form-select">
+              <option value="">— No client —</option>
+              {% for c in clients %}
+              <option value="{{ c.id }}">{{ c.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Project <span class="text-danger">*</span></label>
+            <select name="project_id" class="form-select" required>
+              <option value="">Select project…</option>
+              {% for p in projects %}
+              <option value="{{ p.id }}">{{ p.client.name }} — {{ p.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Service / Keyword</label>
+            <input type="text" name="service" class="form-control" placeholder="e.g., emergency plumbing">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Cities (comma-separated) <span class="text-danger">*</span></label>
+            <textarea name="cities" class="form-control" rows="4" required
+                      placeholder="Austin, Dallas, Houston, San Antonio"></textarea>
+            <div class="form-text">One landing page will be generated per city.</div>
+          </div>
+          <button type="submit" class="btn btn-primary w-100">
+            <i class="bi bi-geo-alt me-1"></i>Generate Silo Pages
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-7">
+    <div class="card">
+      <div class="card-header"><h6 class="mb-0">Batch Deploy</h6></div>
+      <div class="card-body">
+        <p class="text-muted">Deploy all draft pages for a project to WordPress at once.</p>
+        <form method="POST" action="{{ url_for('local_seo.deploy_all') }}">
+          <div class="mb-3">
+            <label class="form-label">Project</label>
+            <select name="project_id" class="form-select" required>
+              <option value="">Select project…</option>
+              {% for p in projects %}
+              <option value="{{ p.id }}">{{ p.client.name }} — {{ p.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <button type="submit" class="btn btn-success"
+                  onclick="return confirm('Deploy all draft pages in this project?')">
+            <i class="bi bi-cloud-upload me-1"></i>Deploy All Draft Pages
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

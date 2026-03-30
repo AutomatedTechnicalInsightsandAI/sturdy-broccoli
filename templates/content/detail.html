@@ -1,0 +1,87 @@
+{% extends 'base.html' %}
+{% block title %}{{ page.title }} — Sturdy Broccoli{% endblock %}
+{% block page_title %}Content Detail{% endblock %}
+
+{% block content %}
+<div class="d-flex gap-2 mb-4 flex-wrap">
+  <a href="{{ url_for('content.edit_content', content_id=page.id) }}" class="btn btn-outline-secondary">
+    <i class="bi bi-pencil me-1"></i>Edit
+  </a>
+  {% if page.status != 'published' %}
+  <form method="POST" action="{{ url_for('content.deploy_content', content_id=page.id) }}">
+    <button type="submit" class="btn btn-success">
+      <i class="bi bi-cloud-upload me-1"></i>Deploy to WordPress
+    </button>
+  </form>
+  {% endif %}
+  <form method="POST" action="{{ url_for('onpage.analyze', content_id=page.id) }}">
+    <button type="submit" class="btn btn-outline-info">
+      <i class="bi bi-graph-up me-1"></i>Analyze On-Page
+    </button>
+  </form>
+  <form method="POST" action="{{ url_for('content.delete_content', content_id=page.id) }}"
+        onsubmit="return confirm('Delete this page?')" class="ms-auto">
+    <button type="submit" class="btn btn-outline-danger">
+      <i class="bi bi-trash me-1"></i>Delete
+    </button>
+  </form>
+</div>
+
+<div class="row g-4">
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-header"><h6 class="mb-0">{{ page.title }}</h6></div>
+      <div class="card-body">
+        <div class="content-preview">{{ page.content|safe }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card mb-3">
+      <div class="card-header"><h6 class="mb-0">Page Details</h6></div>
+      <div class="card-body">
+        <dl class="row mb-0 small">
+          <dt class="col-5 text-muted">Status</dt>
+          <dd class="col-7">
+            <span class="badge bg-{% if page.status == 'published' %}success{% elif page.status == 'draft' %}secondary{% else %}warning{% endif %}">
+              {{ page.status }}
+            </span>
+          </dd>
+          <dt class="col-5 text-muted">Type</dt>
+          <dd class="col-7">{{ page.content_type }}</dd>
+          <dt class="col-5 text-muted">Project</dt>
+          <dd class="col-7">
+            <a href="{{ url_for('projects.project_detail', project_id=page.project.id) }}">{{ page.project.name }}</a>
+          </dd>
+          <dt class="col-5 text-muted">Quality Score</dt>
+          <dd class="col-7">
+            {% if page.quality_score %}
+            <span class="fw-bold text-{% if page.quality_score >= 70 %}success{% elif page.quality_score >= 40 %}warning{% else %}danger{% endif %}">
+              {{ page.quality_score|int }}/100
+            </span>
+            {% else %}Not analyzed{% endif %}
+          </dd>
+          {% if page.wp_post_url %}
+          <dt class="col-5 text-muted">WP URL</dt>
+          <dd class="col-7"><a href="{{ page.wp_post_url }}" target="_blank" class="text-break">View post</a></dd>
+          {% endif %}
+          <dt class="col-5 text-muted">Created</dt>
+          <dd class="col-7">{{ page.created_at.strftime('%b %d, %Y') }}</dd>
+        </dl>
+      </div>
+    </div>
+    {% if page.meta_description %}
+    <div class="card mb-3">
+      <div class="card-header"><h6 class="mb-0">Meta Description</h6></div>
+      <div class="card-body"><p class="small mb-0 text-muted">{{ page.meta_description }}</p></div>
+    </div>
+    {% endif %}
+    {% if page.schema_markup %}
+    <div class="card">
+      <div class="card-header"><h6 class="mb-0">Schema Markup</h6></div>
+      <div class="card-body"><pre class="small text-muted mb-0" style="white-space:pre-wrap;">{{ page.schema_markup }}</pre></div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

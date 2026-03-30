@@ -1,0 +1,80 @@
+{% extends 'base.html' %}
+{% block title %}GBP Posts — Sturdy Broccoli{% endblock %}
+{% block page_title %}Google Business Profile Posts{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+  <div class="col-lg-5">
+    <div class="card">
+      <div class="card-header"><h6 class="mb-0">Schedule New Post</h6></div>
+      <div class="card-body">
+        <form method="POST" action="{{ url_for('gbp.schedule') }}">
+          <div class="mb-3">
+            <label class="form-label">Project</label>
+            <select name="project_id" class="form-select" required>
+              <option value="">Select project…</option>
+              {% for p in projects %}
+              <option value="{{ p.id }}">{{ p.client.name }} — {{ p.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Post Content <span class="text-danger">*</span></label>
+            <textarea name="content_text" class="form-control" rows="4" required
+                      placeholder="Write your GBP post here…"></textarea>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Call-to-Action</label>
+            <input type="text" name="cta" class="form-control" placeholder="e.g., Call Now, Book Today">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Image URL</label>
+            <input type="url" name="image_url" class="form-control">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Schedule Date &amp; Time</label>
+            <input type="datetime-local" name="scheduled_at" class="form-control">
+          </div>
+          <button type="submit" class="btn btn-primary w-100">Schedule Post</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-7">
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h6 class="mb-0">Recent Posts</h6>
+        <a href="{{ url_for('gbp.history') }}" class="btn btn-sm btn-outline-secondary">Full History</a>
+      </div>
+      {% if posts %}
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead><tr><th>Content</th><th>CTA</th><th>Status</th><th>Scheduled</th></tr></thead>
+            <tbody>
+              {% for post in posts %}
+              <tr>
+                <td class="small">{{ post.content_text[:60] }}…</td>
+                <td class="small text-muted">{{ post.cta or '—' }}</td>
+                <td>
+                  <span class="badge bg-{% if post.status == 'posted' %}success{% else %}warning{% endif %}">
+                    {{ post.status }}
+                  </span>
+                </td>
+                <td class="text-muted small">
+                  {{ post.scheduled_at.strftime('%b %d, %H:%M') if post.scheduled_at else '—' }}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      {% else %}
+      <div class="card-body text-center text-muted py-4">No posts scheduled yet.</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,54 @@
+{% extends 'base.html' %}
+{% block title %}Audit: {{ audit.domain }} — Sturdy Broccoli{% endblock %}
+{% block page_title %}SEO Audit: {{ audit.domain }}{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+  <div class="col-md-3">
+    <div class="card text-center">
+      <div class="card-body py-4">
+        <div class="display-4 fw-bold text-{% if audit.audit_score >= 70 %}success{% elif audit.audit_score >= 40 %}warning{% else %}danger{% endif %}">
+          {{ audit.audit_score|int }}
+        </div>
+        <div class="text-muted">SEO Score</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-9">
+    <div class="card">
+      <div class="card-header"><h6 class="mb-0">Issues Found ({{ issues|length }})</h6></div>
+      {% if issues %}
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table mb-0">
+            <thead><tr><th>Issue</th><th>Detail</th><th>Severity</th></tr></thead>
+            <tbody>
+              {% for issue in issues %}
+              <tr>
+                <td>{{ issue.type }}</td>
+                <td class="text-muted small">{{ issue.detail }}</td>
+                <td>
+                  <span class="badge bg-{% if issue.severity == 'critical' %}danger{% elif issue.severity == 'high' %}warning{% else %}secondary{% endif %}">
+                    {{ issue.severity }}
+                  </span>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      {% else %}
+      <div class="card-body text-center text-success py-4">
+        <i class="bi bi-check-circle fs-1 d-block mb-2"></i>No issues found!
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+<div class="mt-3">
+  <a href="{{ url_for('audit.dashboard') }}" class="btn btn-outline-secondary">
+    <i class="bi bi-arrow-left me-1"></i>Back to Audits
+  </a>
+</div>
+{% endblock %}

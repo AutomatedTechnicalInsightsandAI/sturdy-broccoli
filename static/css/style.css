@@ -1,0 +1,178 @@
+:root {
+    --primary: #1a3c6e;
+    --accent: #f59e0b;
+    --dark: #0f172a;
+    --dark-card: #1e293b;
+    --text-light: #e2e8f0;
+    --sidebar-width: 260px;
+}
+
+body {
+    background-color: var(--dark);
+    color: var(--text-light);
+    min-height: 100vh;
+}
+
+/* ── Sidebar ─────────────────────────────────────────────── */
+.sidebar {
+    width: var(--sidebar-width);
+    min-height: 100vh;
+    background-color: #0d1b2a;
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
+    position: sticky;
+    top: 0;
+    overflow-y: auto;
+}
+
+.sidebar-brand {
+    color: var(--accent) !important;
+}
+
+.sidebar .nav-link {
+    color: #94a3b8;
+    border-radius: 6px;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.9rem;
+    transition: background 0.15s, color 0.15s;
+}
+
+.sidebar .nav-link:hover {
+    background-color: rgba(255, 255, 255, 0.07);
+    color: var(--text-light);
+}
+
+.sidebar .nav-link.active {
+    background-color: var(--primary);
+    color: #fff;
+}
+
+.sidebar-user {
+    font-size: 0.875rem;
+    color: #94a3b8;
+    display: flex;
+    align-items: center;
+}
+
+/* ── Main content ────────────────────────────────────────── */
+.main-content {
+    min-height: 100vh;
+    background-color: var(--dark);
+}
+
+.top-navbar {
+    background-color: var(--dark-card);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* ── Cards ───────────────────────────────────────────────── */
+.card {
+    background-color: var(--dark-card);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+}
+
+.card-header {
+    background-color: rgba(255, 255, 255, 0.04);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* ── KPI Cards ───────────────────────────────────────────── */
+.kpi-card {
+    border-left: 3px solid var(--accent);
+}
+
+.kpi-value {
+    font-size: 2rem;
+    font-weight: 700;
+    line-height: 1;
+    color: var(--text-light);
+}
+
+.kpi-label {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+/* ── Tables ──────────────────────────────────────────────── */
+.table {
+    color: var(--text-light);
+}
+
+.table-hover > tbody > tr:hover > * {
+    background-color: rgba(255, 255, 255, 0.04);
+    color: var(--text-light);
+}
+
+.table thead th {
+    background-color: rgba(255, 255, 255, 0.04);
+    border-bottom-color: rgba(255, 255, 255, 0.1);
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #94a3b8;
+}
+
+/* ── Forms ───────────────────────────────────────────────── */
+.form-control,
+.form-select {
+    background-color: #0f172a;
+    border-color: rgba(255, 255, 255, 0.12);
+    color: var(--text-light);
+}
+
+.form-control:focus,
+.form-select:focus {
+    background-color: #0f172a;
+    border-color: var(--accent);
+    color: var(--text-light);
+    box-shadow: 0 0 0 0.2rem rgba(245, 158, 11, 0.25);
+}
+
+.form-control::placeholder {
+    color: #475569;
+}
+
+/* ── Buttons ─────────────────────────────────────────────── */
+.btn-primary {
+    background-color: var(--primary);
+    border-color: var(--primary);
+}
+
+.btn-primary:hover {
+    background-color: #1e4d8c;
+    border-color: #1e4d8c;
+}
+
+/* ── Content preview ─────────────────────────────────────── */
+.content-preview h1,
+.content-preview h2,
+.content-preview h3 {
+    color: var(--text-light);
+    margin-top: 1.25rem;
+}
+
+.content-preview p {
+    color: #cbd5e1;
+    line-height: 1.7;
+}
+
+/* ── Accent colour utility ───────────────────────────────── */
+.text-accent {
+    color: var(--accent) !important;
+}
+
+/* ── Responsive sidebar ──────────────────────────────────── */
+@media (max-width: 768px) {
+    .sidebar {
+        width: 60px;
+    }
+    .sidebar span,
+    .sidebar .sidebar-brand span,
+    .sidebar-user span {
+        display: none;
+    }
+    .sidebar .nav-link {
+        justify-content: center;
+    }
+}
