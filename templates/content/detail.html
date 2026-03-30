@@ -16,7 +16,7 @@
   {% endif %}
   <form method="POST" action="{{ url_for('onpage.analyze', content_id=page.id) }}">
     <button type="submit" class="btn btn-outline-info">
-      <i class="bi bi-graph-up me-1"></i>Analyse On-Page
+      <i class="bi bi-graph-up me-1"></i>Analyze On-Page
     </button>
   </form>
   <form method="POST" action="{{ url_for('content.delete_content', content_id=page.id) }}"
@@ -59,7 +59,7 @@
             <span class="fw-bold text-{% if page.quality_score >= 70 %}success{% elif page.quality_score >= 40 %}warning{% else %}danger{% endif %}">
               {{ page.quality_score|int }}/100
             </span>
-            {% else %}Not analysed{% endif %}
+            {% else %}Not analyzed{% endif %}
           </dd>
           {% if page.wp_post_url %}
           <dt class="col-5 text-muted">WP URL</dt>

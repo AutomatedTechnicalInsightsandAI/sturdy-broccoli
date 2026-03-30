@@ -2,7 +2,7 @@
 from datetime import datetime
 from flask import Blueprint, render_template, redirect, url_for, flash, request
 from flask_login import login_required, current_user
-from app import db
+from extensions import db
 from models import Client, Project, ContentPage, ContentSchedule
 
 calendar_bp = Blueprint('calendar', __name__)

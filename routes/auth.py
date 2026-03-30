@@ -1,7 +1,7 @@
 """Authentication routes: login, register, logout."""
 from flask import Blueprint, render_template, redirect, url_for, flash, request
 from flask_login import login_user, logout_user, login_required, current_user
-from app import db, bcrypt
+from extensions import db, bcrypt
 from models import User
 
 auth_bp = Blueprint('auth', __name__)

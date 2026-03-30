@@ -1,7 +1,7 @@
 """Local SEO silo generator routes."""
 from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app
 from flask_login import login_required, current_user
-from app import db
+from extensions import db
 from models import Client, Project, ContentPage
 from services.openai_service import generate_content
 from services.wordpress_service import publish_content

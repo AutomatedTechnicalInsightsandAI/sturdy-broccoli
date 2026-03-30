@@ -3,17 +3,7 @@ app.py — Flask application factory for Sturdy Broccoli SEO platform.
 """
 import os
 from flask import Flask
-from flask_sqlalchemy import SQLAlchemy
-from flask_login import LoginManager
-from flask_bcrypt import Bcrypt
-from flask_migrate import Migrate
-from flask_mail import Mail
-
-db = SQLAlchemy()
-login_manager = LoginManager()
-bcrypt = Bcrypt()
-migrate = Migrate()
-mail = Mail()
+from extensions import db, login_manager, bcrypt, migrate, mail
 
 
 def create_app(config_name=None):
@@ -34,11 +24,11 @@ def create_app(config_name=None):
     login_manager.login_view = 'auth.login'
     login_manager.login_message_category = 'info'
 
-    from models import User
+    import models  # noqa: F401 — registers models with SQLAlchemy
 
     @login_manager.user_loader
     def load_user(user_id):
-        return User.query.get(int(user_id))
+        return models.User.query.get(int(user_id))
 
     # Register blueprints
     from routes.auth import auth_bp

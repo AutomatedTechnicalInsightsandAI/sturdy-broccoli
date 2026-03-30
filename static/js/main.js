@@ -18,7 +18,7 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     });
 
-    // Chart.js: initialise any canvas elements with data-chart attribute
+    // Chart.js: initialize any canvas elements with data-chart attribute
     document.querySelectorAll('canvas[data-chart]').forEach(function (canvas) {
         try {
             var cfg = JSON.parse(canvas.dataset.chart);
