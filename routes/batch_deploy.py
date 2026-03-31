@@ -135,7 +135,9 @@ def schedule():
     created_schedules = []
 
     for slot in proposed:
-        job_id = f"deploy_{project.id}_{slot['content_page_id']}_{int(slot['scheduled_at_utc'].timestamp())}"
+        import hashlib
+        job_id_raw = f"deploy_{project.id}_{slot['content_page_id']}_{int(slot['scheduled_at_utc'].timestamp())}"
+        job_id = "d_" + hashlib.sha1(job_id_raw.encode()).hexdigest()[:16]
         record = ContentSchedule(
             project_id=project.id,
             content_page_id=slot["content_page_id"],

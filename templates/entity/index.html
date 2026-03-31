@@ -375,7 +375,7 @@ h1 {
     {% set ents = entities or [] %}
     {% for e in ents %}
     {% set status = e.coverage_status | default('missing') %}
-    <div class="entity-card" data-entity="{{ e.entity | e }}" data-analysis-id="{{ analysis.id }}">
+    <div class="entity-card" data-entity="{{ e.entity | escape }}" data-analysis-id="{{ analysis.id }}">
       <div class="entity-name">{{ e.entity }}</div>
       {% if status == 'strong' %}
       <span class="status-badge badge-strong">✅ High Coverage</span>
@@ -391,7 +391,7 @@ h1 {
       <div class="toggle-wrap">
         <input type="checkbox" class="toggle-input entity-toggle"
                id="toggle-{{ loop.index }}" checked
-               data-entity="{{ e.entity | e }}">
+               data-entity="{{ e.entity | escape }}">
         <label class="toggle-label" for="toggle-{{ loop.index }}"></label>
         <span>Include in content</span>
       </div>

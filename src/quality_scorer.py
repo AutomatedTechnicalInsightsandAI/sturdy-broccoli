@@ -395,7 +395,8 @@ class QualityScorer:
             )
             if entity_pct < 0.5:
                 missing = [e for e in target_entities if e.lower() not in content_lower][:5]
-                notes.append(f"Missing entities: {', '.join(missing)}.")
+                suffix = f" (+{len([e for e in target_entities if e.lower() not in content_lower]) - 5} more)" if len([e for e in target_entities if e.lower() not in content_lower]) > 5 else ""
+                notes.append(f"Missing entities: {', '.join(missing)}{suffix}.")
         else:
             notes.append("No target entities provided — skipping entity coverage check.")
 
