@@ -131,6 +131,43 @@ _BANNED_OPENERS = re.compile(
     re.IGNORECASE | re.MULTILINE,
 )
 
+# ---------------------------------------------------------------------------
+# Performance Guard signals (structure dimension)
+# ---------------------------------------------------------------------------
+
+# <img> tags without loading="lazy"
+_IMG_TAG_PATTERN = re.compile(r"<img\b[^>]*>", re.IGNORECASE | re.DOTALL)
+_LAZY_LOADING_PATTERN = re.compile(r'\bloading\s*=\s*["\']lazy["\']', re.IGNORECASE)
+# <picture> parent check — img inside picture
+_PICTURE_IMG_PATTERN = re.compile(
+    r"<picture\b[^>]*>.*?</picture>", re.IGNORECASE | re.DOTALL
+)
+_WEBP_SOURCE_PATTERN = re.compile(
+    r'<source\b[^>]*type\s*=\s*["\']image/webp["\']', re.IGNORECASE
+)
+# Inline style= attributes (unique count)
+_INLINE_STYLE_PATTERN = re.compile(r'\bstyle\s*=\s*["\'][^"\']*["\']', re.IGNORECASE)
+
+# ---------------------------------------------------------------------------
+# Conversion Trust Signals (engagement dimension)
+# ---------------------------------------------------------------------------
+
+_PHONE_PATTERN = re.compile(r"\(?\d{3}\)?[\s\-\.]\d{3}[\s\-\.]\d{4}")
+_BUSINESS_HOURS_PATTERN = re.compile(
+    r"(mon[\-–]fri|monday\s+through\s+friday|"
+    r"\d{1,2}\s*(am|pm)\s*[\-–]\s*\d{1,2}\s*(am|pm)|"
+    r"open\s+daily|hours\s*:)",
+    re.IGNORECASE,
+)
+_REVIEWS_PATTERN = re.compile(
+    r"(★|☆|\breview(s)?\b|\bstar(s)?\b|\brated\b)", re.IGNORECASE
+)
+_ADDRESS_PATTERN = re.compile(
+    r"\b\d{1,5}\s+[A-Za-z]{2,}(\s+[A-Za-z]+)*\s+(st|street|ave|avenue|blvd|"
+    r"boulevard|rd|road|dr|drive|ln|lane|way|ct|court|pl|place)\b",
+    re.IGNORECASE,
+)
+
 
 # ---------------------------------------------------------------------------
 # Result dataclass
@@ -150,14 +187,24 @@ class QualityScoreResult:
     explanations: dict[str, list[str]] = field(default_factory=dict)
 
     def as_dict(self) -> dict[str, Any]:
+        auth = round(self.authority, 1)
+        sem = round(self.semantic, 1)
+        struct = round(self.structure, 1)
+        eng = round(self.engagement, 1)
+        uniq = round(self.uniqueness, 1)
         return {
-            "authority": round(self.authority, 1),
-            "semantic": round(self.semantic, 1),
-            "structure": round(self.structure, 1),
-            "engagement": round(self.engagement, 1),
-            "uniqueness": round(self.uniqueness, 1),
+            "authority": auth,
+            "semantic": sem,
+            "structure": struct,
+            "engagement": eng,
+            "uniqueness": uniq,
             "overall": round(self.overall, 1),
             "explanations": self.explanations,
+            "radar_data": {
+                "labels": ["Authority", "Semantic", "Structure", "Engagement", "Uniqueness"],
+                "values": [auth, sem, struct, eng, uniq],
+                "colors": ["#7c3aed", "#22c55e", "#3b82f6", "#f59e0b", "#ec4899"],
+            },
         }
 
 
@@ -290,7 +337,7 @@ class QualityScorer:
     def _score_semantic(
         content: str, page_data: dict[str, Any]
     ) -> tuple[float, list[str]]:
-        """Score semantic richness (0–100)."""
+        """Score semantic richness (0–100), including entity coverage."""
         notes: list[str] = []
         score = 0.0
         words = content.split()
@@ -311,34 +358,52 @@ class QualityScorer:
         else:
             notes.append("Good: No generic filler phrases detected.")
 
-        # Technical term density (up to 20 pts)
+        # Technical term density (up to 14 pts — reduced to make room for entity coverage)
         tech_terms = len(set(_TECHNICAL_TERM_DENSITY_PATTERN.findall(content)))
-        tech_score = min(20.0, tech_terms * 2.0)
+        tech_score = min(14.0, tech_terms * 2.0)
         score += tech_score
         if tech_terms >= 5:
             notes.append(f"Good: {tech_terms} technical terms/acronyms detected.")
         else:
             notes.append("Add more domain-specific terminology and acronyms.")
 
-        # Vocabulary diversity (type-token ratio) — up to 20 pts
+        # Vocabulary diversity (type-token ratio) — up to 14 pts
         unique_words = len(set(w.lower() for w in words if len(w) > 3))
         ttr = unique_words / word_count if word_count else 0
-        ttr_score = min(20.0, ttr * 40.0)
+        ttr_score = min(14.0, ttr * 28.0)
         score += ttr_score
 
-        # Primary keyword present (10 pts)
+        # Primary keyword present (8 pts)
         primary_kw = page_data.get("primary_keyword", "")
         if primary_kw and primary_kw.lower() in content.lower():
-            score += 10.0
+            score += 8.0
             notes.append("Primary keyword present in content.")
         elif primary_kw:
             notes.append(f"Primary keyword '{primary_kw}' not found in content.")
+
+        # Entity coverage (weighted at 30% of semantic score — up to 14 pts here)
+        target_entities: list[str] = page_data.get("target_entities", []) or []
+        if target_entities:
+            content_lower = content.lower()
+            matched = [e for e in target_entities if e.lower() in content_lower]
+            entity_pct = len(matched) / len(target_entities)
+            entity_score = min(14.0, entity_pct * 14.0)
+            score += entity_score
+            notes.append(
+                f"Entity coverage: {len(matched)}/{len(target_entities)} "
+                f"({round(entity_pct * 100)}%) target entities found."
+            )
+            if entity_pct < 0.5:
+                missing = [e for e in target_entities if e.lower() not in content_lower][:5]
+                notes.append(f"Missing entities: {', '.join(missing)}.")
+        else:
+            notes.append("No target entities provided — skipping entity coverage check.")
 
         return min(100.0, score), notes
 
     @staticmethod
     def _score_structure(content: str) -> tuple[float, list[str]]:
-        """Score semantic HTML structure (0–100)."""
+        """Score semantic HTML structure (0–100), including performance guard checks."""
         notes: list[str] = []
         score = 0.0
 
@@ -410,11 +475,56 @@ class QualityScorer:
         else:
             notes.append("Add trust/credibility signals: testimonials, awards, certifications.")
 
-        return min(100.0, score), notes
+        # ------------------------------------------------------------------
+        # Performance Guard (penalties / bonuses applied to structure score)
+        # ------------------------------------------------------------------
+        if is_html:
+            all_imgs = _IMG_TAG_PATTERN.findall(content)
+            picture_blocks = _PICTURE_IMG_PATTERN.findall(content)
+
+            # Penalise <img> without loading="lazy" (-5 pts each, max -20)
+            lazy_violations = sum(
+                1 for img in all_imgs if not _LAZY_LOADING_PATTERN.search(img)
+            )
+            lazy_penalty = min(20.0, lazy_violations * 5.0)
+            score -= lazy_penalty
+            if lazy_violations:
+                notes.append(
+                    f"Performance: {lazy_violations} <img> tag(s) missing loading=\"lazy\". "
+                    f"-{lazy_penalty:.0f} pts."
+                )
+
+            # Penalise <img> without <picture> parent (-3 pts each, max -15)
+            imgs_in_picture = sum(img.count("<img") for img in picture_blocks)
+            imgs_without_picture = max(0, len(all_imgs) - imgs_in_picture)
+            picture_penalty = min(15.0, imgs_without_picture * 3.0)
+            score -= picture_penalty
+            if imgs_without_picture:
+                notes.append(
+                    f"Performance: {imgs_without_picture} <img> tag(s) not inside <picture>. "
+                    f"-{picture_penalty:.0f} pts."
+                )
+
+            # Penalise inline style= attributes (-2 pts per unique, max -10)
+            inline_styles = len(set(_INLINE_STYLE_PATTERN.findall(content)))
+            style_penalty = min(10.0, inline_styles * 2.0)
+            score -= style_penalty
+            if inline_styles:
+                notes.append(
+                    f"Zero-bloat: {inline_styles} inline style= attribute(s) detected. "
+                    f"-{style_penalty:.0f} pts."
+                )
+
+            # Award +10 pts for WebP sources in <picture> tags
+            if _WEBP_SOURCE_PATTERN.search(content):
+                score += 10.0
+                notes.append("Performance: WebP <source> detected in <picture>. +10 pts.")
+
+        return min(100.0, max(0.0, score)), notes
 
     @staticmethod
     def _score_engagement(content: str) -> tuple[float, list[str]]:
-        """Score engagement potential (0–100)."""
+        """Score engagement potential (0–100), including conversion trust signals."""
         notes: list[str] = []
         score = 0.0
 
@@ -455,6 +565,33 @@ class QualityScorer:
             notes.append("Good: Questions create engagement and curiosity.")
         else:
             notes.append("Use questions to keep readers engaged and curious.")
+
+        # ------------------------------------------------------------------
+        # Conversion Trust Signals (bonus points)
+        # ------------------------------------------------------------------
+        if _PHONE_PATTERN.search(content):
+            score += 8.0
+            notes.append("Trust: Phone number detected. +8 pts.")
+        else:
+            notes.append("Add a visible phone number for trust and conversions.")
+
+        if _BUSINESS_HOURS_PATTERN.search(content):
+            score += 8.0
+            notes.append("Trust: Business hours detected. +8 pts.")
+        else:
+            notes.append("Add business hours to build local trust.")
+
+        if _REVIEWS_PATTERN.search(content):
+            score += 8.0
+            notes.append("Trust: Reviews/ratings block detected. +8 pts.")
+        else:
+            notes.append("Add star ratings or review snippets to boost conversion trust.")
+
+        if _ADDRESS_PATTERN.search(content):
+            score += 6.0
+            notes.append("Trust: Physical address detected. +6 pts.")
+        else:
+            notes.append("Include a physical address for local SEO trust signals.")
 
         return min(100.0, score), notes
 

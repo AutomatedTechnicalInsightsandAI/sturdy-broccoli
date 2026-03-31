@@ -1,0 +1,203 @@
+{#
+  Score Radar Component — pure SVG + CSS spider chart driven by inline JS.
+  Receives: score_data (dict with radar_data key from QualityScorer.as_dict())
+  Usage: {% include 'components/score_radar.html' %}
+#}
+{% set rd = score_data.get('radar_data', {}) if score_data else {} %}
+{% set labels = rd.get('labels', ['Authority', 'Semantic', 'Structure', 'Engagement', 'Uniqueness']) %}
+{% set values = rd.get('values', [0, 0, 0, 0, 0]) %}
+{% set colors = rd.get('colors', ['#7c3aed', '#22c55e', '#3b82f6', '#f59e0b', '#ec4899']) %}
+
+<style>
+.radar-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+}
+.radar-svg {
+  width: 100%;
+  max-width: 300px;
+  height: auto;
+  overflow: visible;
+}
+.radar-axis-line { stroke: rgba(255,255,255,0.1); stroke-width: 1; }
+.radar-ring { fill: none; stroke: rgba(255,255,255,0.07); stroke-width: 1; }
+.radar-polygon {
+  fill-opacity: 0.25;
+  stroke-width: 2;
+  stroke-dasharray: 1200;
+  stroke-dashoffset: 1200;
+  animation: radar-draw 1.4s ease forwards;
+}
+@keyframes radar-draw { to { stroke-dashoffset: 0; } }
+.radar-axis-label {
+  font-size: 11px;
+  font-family: 'Inter', system-ui, sans-serif;
+  font-weight: 600;
+  fill: #94a3b8;
+  dominant-baseline: middle;
+}
+.radar-val-label {
+  font-size: 10px;
+  font-family: 'Inter', system-ui, sans-serif;
+  font-weight: 700;
+  dominant-baseline: middle;
+}
+.radar-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: center;
+}
+.radar-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.75rem;
+  color: #94a3b8;
+  font-family: 'Inter', system-ui, sans-serif;
+}
+.radar-legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+</style>
+
+<div class="radar-container">
+  <svg id="score-radar-{{ loop.index if loop is defined else '0' }}"
+       viewBox="0 0 300 300"
+       class="radar-svg"
+       role="img"
+       aria-label="Quality score radar chart"
+       data-labels="{{ labels | tojson | e }}"
+       data-values="{{ values | tojson | e }}"
+       data-colors="{{ colors | tojson | e }}">
+    <title>Quality Score Radar Chart</title>
+  </svg>
+
+  <div class="radar-legend" id="score-radar-legend-{{ loop.index if loop is defined else '0' }}">
+    {% for i in range(labels | length) %}
+    <div class="radar-legend-item">
+      <div class="radar-legend-dot" style="background:{{ colors[i] if i < colors | length else '#7c3aed' }};"></div>
+      <span>{{ labels[i] }}: {{ values[i] if i < values | length else 0 }}</span>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<script>
+(function() {
+  var svgs = document.querySelectorAll('svg[data-labels]');
+  svgs.forEach(function(svg) {
+    try {
+      var labels = JSON.parse(svg.getAttribute('data-labels'));
+      var values = JSON.parse(svg.getAttribute('data-values'));
+      var colors = JSON.parse(svg.getAttribute('data-colors'));
+      drawRadar(svg, labels, values, colors);
+    } catch(e) {}
+  });
+
+  function drawRadar(svg, labels, values, colors) {
+    var cx = 150, cy = 150, rMax = 100, n = labels.length;
+    var NS = 'http://www.w3.org/2000/svg';
+
+    function pt(i, r) {
+      var angle = (2 * Math.PI * i / n) - (Math.PI / 2);
+      return { x: cx + r * Math.cos(angle), y: cy + r * Math.sin(angle) };
+    }
+
+    function ptsStr(r_fn) {
+      return Array.from({length: n}, function(_, i) {
+        var p = pt(i, r_fn(i));
+        return p.x.toFixed(2) + ',' + p.y.toFixed(2);
+      }).join(' ');
+    }
+
+    // Reference rings
+    [0.25, 0.5, 0.75, 1.0].forEach(function(frac) {
+      var poly = document.createElementNS(NS, 'polygon');
+      poly.setAttribute('points', ptsStr(function() { return rMax * frac; }));
+      poly.setAttribute('class', 'radar-ring');
+      svg.appendChild(poly);
+    });
+
+    // Axis lines
+    for (var i = 0; i < n; i++) {
+      var p = pt(i, rMax);
+      var line = document.createElementNS(NS, 'line');
+      line.setAttribute('x1', cx); line.setAttribute('y1', cy);
+      line.setAttribute('x2', p.x.toFixed(2)); line.setAttribute('y2', p.y.toFixed(2));
+      line.setAttribute('class', 'radar-axis-line');
+      svg.appendChild(line);
+    }
+
+    // Gradient
+    var defs = document.createElementNS(NS, 'defs');
+    var grad = document.createElementNS(NS, 'linearGradient');
+    grad.setAttribute('id', 'rg_' + svg.id);
+    grad.setAttribute('x1','0'); grad.setAttribute('y1','0');
+    grad.setAttribute('x2','1'); grad.setAttribute('y2','1');
+    var s1 = document.createElementNS(NS, 'stop');
+    s1.setAttribute('offset','0%'); s1.setAttribute('stop-color', colors[0] || '#7c3aed');
+    var s2 = document.createElementNS(NS, 'stop');
+    s2.setAttribute('offset','100%'); s2.setAttribute('stop-color', colors[2] || '#3b82f6');
+    grad.appendChild(s1); grad.appendChild(s2);
+    defs.appendChild(grad);
+    svg.appendChild(defs);
+
+    // Data polygon
+    var poly = document.createElementNS(NS, 'polygon');
+    poly.setAttribute('points', ptsStr(function(i) {
+      return rMax * Math.min(1, Math.max(0, (values[i] || 0) / 100));
+    }));
+    poly.setAttribute('class', 'radar-polygon');
+    poly.setAttribute('fill', 'url(#rg_' + svg.id + ')');
+    poly.setAttribute('stroke', colors[0] || '#7c3aed');
+    svg.appendChild(poly);
+
+    // Dots + value labels
+    for (var i = 0; i < n; i++) {
+      var v = Math.min(100, Math.max(0, values[i] || 0));
+      var p = pt(i, rMax * v / 100);
+      var c = document.createElementNS(NS, 'circle');
+      c.setAttribute('cx', p.x.toFixed(2)); c.setAttribute('cy', p.y.toFixed(2));
+      c.setAttribute('r', '4');
+      c.setAttribute('fill', colors[i] || '#7c3aed');
+      svg.appendChild(c);
+
+      if (v > 5) {
+        var t = document.createElementNS(NS, 'text');
+        t.setAttribute('x', p.x.toFixed(2));
+        t.setAttribute('y', (p.y - 12).toFixed(2));
+        t.setAttribute('class', 'radar-val-label');
+        t.setAttribute('text-anchor', 'middle');
+        t.setAttribute('fill', colors[i] || '#7c3aed');
+        t.textContent = Math.round(v);
+        svg.appendChild(t);
+      }
+    }
+
+    // Axis labels
+    for (var i = 0; i < n; i++) {
+      var p = pt(i, rMax + 22);
+      var t = document.createElementNS(NS, 'text');
+      t.setAttribute('x', p.x.toFixed(2)); t.setAttribute('y', p.y.toFixed(2));
+      t.setAttribute('class', 'radar-axis-label');
+      t.setAttribute('text-anchor', 'middle');
+      t.textContent = labels[i];
+      svg.appendChild(t);
+    }
+
+    // Centre dot
+    var center = document.createElementNS(NS, 'circle');
+    center.setAttribute('cx', cx); center.setAttribute('cy', cy);
+    center.setAttribute('r', '3');
+    center.setAttribute('fill', 'rgba(255,255,255,0.3)');
+    svg.appendChild(center);
+  }
+})();
+</script>

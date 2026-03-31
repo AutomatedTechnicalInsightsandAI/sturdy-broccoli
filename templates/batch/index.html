@@ -1,0 +1,440 @@
+{% extends "base.html" %}
+{% block title %}Batch Scheduler — Sturdy Broccoli{% endblock %}
+
+{% block head_extra %}
+<style>
+:root {
+  --bg: #0a0a0f;
+  --surface: #13131a;
+  --surface-2: #1e1e2e;
+  --accent: #7c3aed;
+  --accent-glow: rgba(124,58,237,0.3);
+  --green: #22c55e;
+  --yellow: #eab308;
+  --red: #ef4444;
+  --blue: #3b82f6;
+  --text: #f1f5f9;
+  --muted: #64748b;
+  --radius: 12px;
+  --shadow: 0 4px 24px rgba(0,0,0,0.4);
+}
+
+.batch-wrap {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 2rem 1rem;
+  color: var(--text);
+}
+
+.top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+h1 {
+  font-size: 3rem;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  background: linear-gradient(135deg, var(--accent), #db2777);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin: 0;
+}
+
+.health-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: var(--surface);
+  border-radius: 999px;
+  padding: 0.4rem 1rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  box-shadow: var(--shadow);
+}
+
+.health-dot {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+}
+
+.dot-green { background: var(--green); }
+.dot-red { background: var(--red); }
+
+.card {
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+  box-shadow: var(--shadow);
+  margin-bottom: 1.5rem;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.field label {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  margin-bottom: 0.35rem;
+}
+
+.field select,
+.field input {
+  width: 100%;
+  background: var(--surface-2);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 8px;
+  padding: 0.65rem 0.9rem;
+  color: var(--text);
+  font-size: 0.9rem;
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.2s;
+}
+.field select:focus,
+.field input:focus { border-color: var(--accent); }
+
+.btn-schedule {
+  background: linear-gradient(135deg, var(--accent), #db2777);
+  border: none;
+  border-radius: var(--radius);
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 700;
+  padding: 0.8rem 1.5rem;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+.btn-schedule:hover { opacity: 0.9; }
+
+/* Timeline grid */
+.timeline {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0 1rem;
+  row-gap: 0.75rem;
+  align-items: start;
+}
+
+.timeline-dot {
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  margin-top: 4px;
+  flex-shrink: 0;
+}
+
+.timeline-row {
+  display: contents;
+}
+
+.timeline-time {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.timeline-tz {
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin-left: 0.25rem;
+}
+
+.timeline-meta {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+/* Status badges */
+.badge {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 0.15rem 0.6rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+.badge-scheduled  { background: rgba(59,130,246,0.15);  color: var(--blue); }
+.badge-deployed   { background: rgba(34,197,94,0.15);   color: var(--green); }
+.badge-failed     { background: rgba(239,68,68,0.15);   color: var(--red); }
+.badge-cancelled  { background: rgba(100,116,139,0.15); color: var(--muted); }
+
+/* Conflict modal — pure CSS */
+#conflict-modal {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.7);
+  z-index: 9999;
+  align-items: center;
+  justify-content: center;
+}
+#conflict-modal.open {
+  display: flex;
+}
+.modal-box {
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 2rem;
+  max-width: 480px;
+  width: 90%;
+  box-shadow: 0 8px 48px rgba(0,0,0,0.7);
+}
+.modal-box h3 {
+  color: var(--red);
+  margin-bottom: 0.75rem;
+}
+.modal-close {
+  background: var(--surface-2);
+  border: none;
+  border-radius: 8px;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 600;
+  padding: 0.5rem 1rem;
+  margin-top: 1rem;
+}
+
+/* Cancel button */
+.btn-cancel {
+  background: none;
+  border: 1px solid rgba(239,68,68,0.4);
+  border-radius: 8px;
+  color: var(--red);
+  cursor: pointer;
+  font-size: 0.78rem;
+  padding: 0.2rem 0.6rem;
+  transition: background 0.2s;
+}
+.btn-cancel:hover { background: rgba(239,68,68,0.1); }
+
+.preview-area {
+  display: none;
+  margin-top: 1rem;
+}
+.preview-area.visible { display: block; }
+
+/* Fade-in */
+@keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
+.fade-in { animation: fadeIn 0.4s ease; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="batch-wrap">
+  <div class="top-bar">
+    <h1>Batch Scheduler</h1>
+    <div class="health-badge">
+      {% if health and health.scheduler_alive %}
+      <span class="health-dot dot-green"></span> 🟢 System Online
+      {% else %}
+      <span class="health-dot dot-red"></span> 🔴 Scheduler Paused
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Schedule form -->
+  <div class="card">
+    <h2 style="font-size:1.2rem; font-weight:700; margin-bottom:1rem;">Schedule Content</h2>
+    <div class="form-row">
+      <div class="field">
+        <label>Project</label>
+        <select id="sel-project">
+          <option value="">Select project…</option>
+          {% for p in projects %}
+          <option value="{{ p.id }}" data-location="{{ p.client.location or '' }}">
+            {{ p.client.name }} — {{ p.name }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label>Base Date &amp; Time</label>
+        <input type="datetime-local" id="base-date">
+      </div>
+    </div>
+    <div style="margin-bottom:1rem;">
+      <div style="font-size:0.78rem; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:var(--muted); margin-bottom:0.5rem;">
+        Content Pages (hold Ctrl/Cmd to select multiple)
+      </div>
+      <select id="sel-pages" multiple style="width:100%; background:var(--surface-2); border:1px solid rgba(255,255,255,0.1); border-radius:8px; padding:0.5rem; color:var(--text); min-height:120px; outline:none; box-sizing:border-box;">
+      </select>
+    </div>
+    <div style="display:flex; gap:0.75rem; flex-wrap:wrap;">
+      <button class="btn-schedule" id="btn-preview">👁 Preview Schedule</button>
+      <button class="btn-schedule" id="btn-confirm" style="display:none; background:linear-gradient(135deg,#22c55e,#16a34a);">
+        ✅ Confirm &amp; Schedule
+      </button>
+    </div>
+    <div class="preview-area" id="preview-area">
+      <h3 style="font-size:1rem; font-weight:700; margin-bottom:0.75rem;">Preview (not saved)</h3>
+      <div id="preview-list"></div>
+    </div>
+  </div>
+
+  <!-- Pending queue timeline -->
+  <div class="card">
+    <h2 style="font-size:1.2rem; font-weight:700; margin-bottom:1.25rem;">Pending Queue</h2>
+    {% if schedules %}
+    <div class="timeline">
+      {% for s in schedules %}
+      <div class="timeline-dot badge-{{ s.status }}
+        {% if s.status == 'scheduled' %}dot-blue
+        {% elif s.status == 'deployed' %}dot-green
+        {% elif s.status == 'failed' %}dot-red
+        {% else %}dot-grey{% endif %}"
+        style="background:{% if s.status == 'scheduled' %}#3b82f6{% elif s.status == 'deployed' %}#22c55e{% elif s.status == 'failed' %}#ef4444{% else %}#64748b{% endif %};">
+      </div>
+      <div>
+        <div style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;">
+          <span class="timeline-time">{{ s.scheduled_at.strftime('%b %d, %Y %I:%M %p') }}</span>
+          <span class="timeline-tz">UTC</span>
+          <span class="badge badge-{{ s.status }}">{{ s.status }}</span>
+          {% if s.status == 'scheduled' %}
+          <form method="POST" action="{{ url_for('batch.cancel', schedule_id=s.id) }}" style="display:inline;">
+            <button type="submit" class="btn-cancel">✕ Cancel</button>
+          </form>
+          {% endif %}
+        </div>
+        <div class="timeline-meta">
+          {{ s.content_page.title if s.content_page else 'Unknown page' }}
+          {% if s.error_message %}
+          <span style="color:var(--red); margin-left:0.5rem;">⚠ {{ s.error_message | truncate(60) }}</span>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p style="color:var(--muted); text-align:center; padding:2rem;">No schedules yet. Create one above.</p>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Conflict modal -->
+<div id="conflict-modal">
+  <div class="modal-box">
+    <h3>⚠️ Schedule Conflicts Detected</h3>
+    <p id="conflict-details" style="color:var(--muted); font-size:0.9rem; line-height:1.6;"></p>
+    <button class="modal-close" id="modal-close">Close</button>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts_extra %}
+<script>
+(function() {
+  var selProject = document.getElementById('sel-project');
+  var selPages = document.getElementById('sel-pages');
+  var baseDate = document.getElementById('base-date');
+  var btnPreview = document.getElementById('btn-preview');
+  var btnConfirm = document.getElementById('btn-confirm');
+  var previewArea = document.getElementById('preview-area');
+  var previewList = document.getElementById('preview-list');
+  var conflictModal = document.getElementById('conflict-modal');
+  var conflictDetails = document.getElementById('conflict-details');
+  var modalClose = document.getElementById('modal-close');
+
+  // Load pages when project changes
+  selProject.addEventListener('change', function() {
+    var pid = this.value;
+    selPages.innerHTML = '<option disabled>Loading…</option>';
+    if (!pid) { selPages.innerHTML = ''; return; }
+    fetch('/content/api/pages?project_id=' + pid)
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        selPages.innerHTML = '';
+        (data.pages || []).forEach(function(p) {
+          var opt = document.createElement('option');
+          opt.value = p.id;
+          opt.textContent = p.title;
+          selPages.appendChild(opt);
+        });
+      })
+      .catch(function() {
+        selPages.innerHTML = '<option disabled>Failed to load pages</option>';
+      });
+  });
+
+  function getSelectedIds() {
+    return Array.from(selPages.selectedOptions).map(function(o) { return o.value; });
+  }
+
+  btnPreview.addEventListener('click', function() {
+    var pid = selProject.value;
+    var ids = getSelectedIds();
+    if (!pid || !ids.length) { alert('Select a project and at least one page.'); return; }
+
+    var params = new URLSearchParams({project_id: pid});
+    ids.forEach(function(id) { params.append('content_ids', id); });
+    if (baseDate.value) params.append('base_date', baseDate.value);
+
+    fetch('/batch/preview?' + params)
+      .then(function(r) { return r.json(); })
+      .then(function(res) {
+        if (res.error) { alert(res.error); return; }
+        previewList.innerHTML = '';
+        (res.preview || []).forEach(function(slot) {
+          var d = new Date(slot.scheduled_at_utc);
+          var div = document.createElement('div');
+          div.style.cssText = 'padding:0.5rem 0; border-bottom:1px solid rgba(255,255,255,0.05); font-size:0.88rem;';
+          div.innerHTML = '📅 <strong>Page #' + slot.content_page_id + '</strong> → ' +
+                          d.toLocaleString() + ' UTC';
+          previewList.appendChild(div);
+        });
+        previewArea.classList.add('visible');
+        btnConfirm.style.display = 'inline-block';
+        btnConfirm._preview = res.preview;
+      });
+  });
+
+  btnConfirm.addEventListener('click', function() {
+    var pid = selProject.value;
+    var ids = getSelectedIds();
+    if (!pid || !ids.length) return;
+
+    var body = {
+      project_id: pid,
+      content_ids: ids,
+    };
+    if (baseDate.value) body.base_date = baseDate.value;
+
+    fetch('/batch/schedule', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(body)
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+      if (res.error && res.conflicts) {
+        conflictDetails.textContent = res.conflicts.map(function(c) {
+          return 'Page #' + c.content_page_id + ' conflicts (gap: ' + c.gap_minutes + ' min)';
+        }).join('\n');
+        conflictModal.classList.add('open');
+        return;
+      }
+      if (res.error) { alert(res.error); return; }
+      alert('Scheduled ' + res.scheduled + ' post(s) successfully!');
+      location.reload();
+    });
+  });
+
+  modalClose.addEventListener('click', function() {
+    conflictModal.classList.remove('open');
+  });
+})();
+</script>
+{% endblock %}
