@@ -1,0 +1,404 @@
+{% extends "base.html" %}
+{% block title %}Virtual Optimization Layer — Sturdy Broccoli{% endblock %}
+
+{% block head_extra %}
+<style>
+:root {
+  --primary: #7c3aed;
+  --accent: #db2777;
+  --surface: #13131a;
+  --surface-2: #1e1e2e;
+  --text: #f1f5f9;
+  --muted: #64748b;
+  --radius: 12px;
+  --shadow: 0 4px 24px rgba(0,0,0,0.4);
+  --glow: rgba(124,58,237,0.3);
+}
+
+.optimize-wrap {
+  max-width: 900px;
+  margin: 2rem auto;
+  padding: 0 1rem;
+  color: var(--text);
+}
+
+.optimize-wrap h1 {
+  font-size: 3.5rem;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  margin-bottom: 0.25rem;
+  background: linear-gradient(135deg, var(--primary), var(--accent));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.optimize-wrap .subtitle {
+  color: var(--muted);
+  margin-bottom: 2rem;
+}
+
+.card-surface {
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+  box-shadow: var(--shadow);
+  margin-bottom: 1.5rem;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
+}
+
+.form-group label {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.form-group input,
+.form-group select {
+  background: var(--surface-2);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  color: var(--text);
+  font-size: 1rem;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+  border-color: var(--primary);
+}
+
+.btn-generate {
+  background: linear-gradient(135deg, var(--primary), var(--accent));
+  border: none;
+  border-radius: var(--radius);
+  color: #fff;
+  font-size: 1.1rem;
+  font-weight: 700;
+  padding: 0.9rem 2rem;
+  cursor: pointer;
+  width: 100%;
+  transition: opacity 0.2s;
+}
+
+.btn-generate:hover {
+  opacity: 0.9;
+}
+
+/* Progress stepper */
+.stepper {
+  display: flex;
+  gap: 0;
+  margin-bottom: 2rem;
+  counter-reset: step;
+}
+
+.step {
+  flex: 1;
+  text-align: center;
+  padding: 0.75rem 0.5rem;
+  border-radius: var(--radius);
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--muted);
+  background: var(--surface);
+  transition: background 0.3s, color 0.3s;
+  position: relative;
+}
+
+.step.active {
+  background: var(--primary);
+  color: #fff;
+}
+
+.step.done {
+  background: #22c55e;
+  color: #fff;
+}
+
+.step + .step {
+  margin-left: 4px;
+}
+
+/* Script output box */
+.script-output-wrap {
+  position: relative;
+}
+
+.script-output-wrap::before {
+  content: '';
+  position: absolute;
+  inset: -8px;
+  border-radius: calc(var(--radius) + 8px);
+  background: radial-gradient(ellipse at 50% 50%, var(--glow) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.script-box {
+  position: relative;
+  z-index: 1;
+  background: var(--surface-2);
+  border-radius: var(--radius);
+  padding: 1rem;
+  overflow-x: auto;
+}
+
+.script-box pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-all;
+  font-family: 'Fira Code', 'Courier New', monospace;
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+/* Syntax highlight (pure CSS) */
+.script-box .kw { color: #c792ea; }
+.script-box .fn { color: #82aaff; }
+.script-box .str { color: #c3e88d; }
+.script-box .punct { color: #89ddff; }
+
+.char-badge {
+  display: inline-block;
+  background: var(--primary);
+  color: #fff;
+  border-radius: 999px;
+  padding: 0.2rem 0.8rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  margin-left: 0.5rem;
+}
+
+.copy-btn {
+  background: var(--surface-2);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 8px;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 0.4rem 1rem;
+  margin-top: 0.75rem;
+  transition: background 0.2s;
+}
+
+.copy-btn:hover { background: var(--primary); }
+
+/* Payload details */
+.payload-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.payload-field {
+  background: var(--surface-2);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+}
+
+.payload-field .field-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  margin-bottom: 0.25rem;
+}
+
+.payload-field .field-value {
+  font-size: 0.9rem;
+  word-break: break-word;
+}
+
+/* Fade-in animation */
+.fade-up {
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity 0.5s, transform 0.5s;
+}
+
+.fade-up.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+#result-section { display: none; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="optimize-wrap">
+  <h1>Virtual Optimization Layer</h1>
+  <p class="subtitle">GPT-4o powered meta-tag optimizer — inject optimized tags into any site instantly.</p>
+
+  <!-- Progress Stepper -->
+  <div class="stepper" id="stepper">
+    <div class="step" id="step1">🔍 Analyzing Page</div>
+    <div class="step" id="step2">🛠 Generating Tags</div>
+    <div class="step" id="step3">✅ Script Ready</div>
+  </div>
+
+  <!-- Form -->
+  <div class="card-surface fade-up">
+    <form id="optimize-form">
+      <div class="form-group">
+        <label>Page URL</label>
+        <input type="url" id="page_url" name="page_url" placeholder="https://example.com/page" required>
+      </div>
+      <div class="form-group">
+        <label>Project / Client</label>
+        <select id="project_id" name="project_id" required>
+          <option value="">Select a project…</option>
+          {% for project in projects %}
+          <option value="{{ project.id }}">{{ project.client.name }} — {{ project.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <button type="submit" class="btn-generate">✨ Generate Optimization Script</button>
+    </form>
+  </div>
+
+  <!-- Result section -->
+  <div id="result-section" class="fade-up">
+    <div class="card-surface">
+      <h2 style="font-size:1.4rem; font-weight:700; margin-bottom:1rem;">
+        Generated Script
+        <span class="char-badge" id="char-badge">0 chars</span>
+      </h2>
+      <div class="script-output-wrap">
+        <div class="script-box">
+          <pre id="script-output"></pre>
+        </div>
+      </div>
+      <button class="copy-btn" id="copy-btn">📋 Copy to Clipboard</button>
+    </div>
+
+    <div class="card-surface">
+      <h2 style="font-size:1.2rem; font-weight:700; margin-bottom:1rem;">Payload Details</h2>
+      <div class="payload-grid" id="payload-grid"></div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts_extra %}
+<script>
+(function() {
+  var form = document.getElementById('optimize-form');
+  var resultSection = document.getElementById('result-section');
+  var scriptOutput = document.getElementById('script-output');
+  var charBadge = document.getElementById('char-badge');
+  var payloadGrid = document.getElementById('payload-grid');
+  var copyBtn = document.getElementById('copy-btn');
+  var steps = [
+    document.getElementById('step1'),
+    document.getElementById('step2'),
+    document.getElementById('step3')
+  ];
+
+  function setStep(n) {
+    steps.forEach(function(s, i) {
+      s.classList.remove('active', 'done');
+      if (i < n - 1) s.classList.add('done');
+      else if (i === n - 1) s.classList.add('active');
+    });
+  }
+
+  function escapeHtml(str) {
+    return String(str)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function highlightScript(code) {
+    return escapeHtml(code)
+      .replace(/\b(function|var|if|else|return|new|typeof|document|window)\b/g,
+               '<span class="kw">$1</span>')
+      .replace(/\b(createElement|setAttribute|appendChild|querySelectorAll|forEach|replace|observe|disconnect|addEventListener)\b/g,
+               '<span class="fn">$1</span>');
+  }
+
+  form.addEventListener('submit', function(e) {
+    e.preventDefault();
+    setStep(1);
+
+    var data = {
+      page_url: document.getElementById('page_url').value,
+      project_id: document.getElementById('project_id').value
+    };
+
+    fetch('/optimize/generate', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(data)
+    })
+    .then(function(r) {
+      setStep(2);
+      return r.json();
+    })
+    .then(function(res) {
+      setStep(3);
+      if (res.error) { alert('Error: ' + res.error); return; }
+
+      scriptOutput.innerHTML = highlightScript(res.script_tag);
+      charBadge.textContent = res.char_count + ' chars';
+
+      // Build payload grid
+      payloadGrid.innerHTML = '';
+      var p = res.payload;
+      var fields = [
+        ['Title', p.title || ''],
+        ['Meta Description', p.meta_description || ''],
+        ['OG Title', (p.og_tags || {})['og:title'] || ''],
+        ['OG Type', (p.og_tags || {})['og:type'] || ''],
+        ['Twitter Card', (p.twitter_tags || {})['twitter:card'] || ''],
+        ['Schema Type', (p.schema_json || {})['@type'] || '']
+      ];
+      fields.forEach(function(pair) {
+        var div = document.createElement('div');
+        div.className = 'payload-field';
+        div.innerHTML = '<div class="field-label">' + escapeHtml(pair[0]) + '</div>' +
+                        '<div class="field-value">' + escapeHtml(pair[1]) + '</div>';
+        payloadGrid.appendChild(div);
+      });
+
+      resultSection.style.display = 'block';
+      resultSection.classList.add('visible');
+    })
+    .catch(function(err) {
+      alert('Request failed: ' + err.message);
+    });
+  });
+
+  copyBtn.addEventListener('click', function() {
+    var text = document.getElementById('script-output').textContent;
+    navigator.clipboard.writeText(text).then(function() {
+      copyBtn.textContent = '✅ Copied!';
+      setTimeout(function() { copyBtn.textContent = '📋 Copy to Clipboard'; }, 2000);
+    });
+  });
+
+  // IntersectionObserver for fade-in-up
+  var io = new IntersectionObserver(function(entries) {
+    entries.forEach(function(entry) {
+      if (entry.isIntersecting) entry.target.classList.add('visible');
+    });
+  }, { threshold: 0.1 });
+
+  document.querySelectorAll('.fade-up').forEach(function(el) { io.observe(el); });
+})();
+</script>
+{% endblock %}

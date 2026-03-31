@@ -1,0 +1,504 @@
+{% extends "base.html" %}
+{% block title %}Entity Gap Analysis — Sturdy Broccoli{% endblock %}
+
+{% block head_extra %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0a0a0f;
+  --surface: #13131a;
+  --surface-2: #1e1e2e;
+  --accent: #7c3aed;
+  --accent-glow: rgba(124,58,237,0.3);
+  --green: #22c55e;
+  --yellow: #eab308;
+  --red: #ef4444;
+  --text: #f1f5f9;
+  --muted: #64748b;
+  --radius: 12px;
+  --shadow: 0 4px 24px rgba(0,0,0,0.4);
+}
+
+.entity-wrap {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem 1rem;
+  font-family: 'Inter', system-ui, sans-serif;
+  color: var(--text);
+}
+
+h1 {
+  font-size: 4rem;
+  font-weight: 900;
+  letter-spacing: -0.03em;
+  background: linear-gradient(135deg, var(--accent), #db2777);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-bottom: 0.25rem;
+}
+
+.subtitle { color: var(--muted); margin-bottom: 2rem; }
+
+/* Progress Stepper */
+.stepper {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 2rem;
+}
+
+@media (max-width: 640px) {
+  .stepper { flex-direction: column; }
+}
+
+.step {
+  flex: 1;
+  padding: 0.75rem;
+  border-radius: var(--radius);
+  background: var(--surface);
+  text-align: center;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--muted);
+  transition: background 0.3s, color 0.3s;
+}
+
+.step.active { background: var(--accent); color: #fff; }
+.step.done   { background: var(--green); color: #fff; }
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+.step.loading { animation: pulse 1s infinite; }
+
+/* Form card */
+.card {
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+  box-shadow: var(--shadow);
+  margin-bottom: 1.5rem;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.field label {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  margin-bottom: 0.35rem;
+}
+
+.field select,
+.field input {
+  width: 100%;
+  background: var(--surface-2);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 8px;
+  padding: 0.7rem 1rem;
+  color: var(--text);
+  font-size: 0.95rem;
+  font-family: inherit;
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.2s;
+}
+.field select:focus,
+.field input:focus { border-color: var(--accent); }
+
+.btn-magic {
+  display: block;
+  width: 100%;
+  background: linear-gradient(135deg, var(--accent), #db2777);
+  border: none;
+  border-radius: var(--radius);
+  color: #fff;
+  font-size: 1.1rem;
+  font-weight: 700;
+  padding: 1rem 2rem;
+  cursor: pointer;
+  font-family: inherit;
+  transition: opacity 0.2s;
+}
+.btn-magic:hover { opacity: 0.9; }
+
+/* Entity cards grid */
+.entity-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+@media (min-width: 640px) { .entity-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (min-width: 1024px) { .entity-grid { grid-template-columns: repeat(3, 1fr); } }
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.entity-card {
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 1.25rem;
+  box-shadow: var(--shadow);
+  transition: transform 0.2s, box-shadow 0.2s;
+  opacity: 0;
+}
+.entity-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 40px rgba(0,0,0,0.5);
+}
+.entity-card.visible {
+  animation: fadeInUp 0.5s ease forwards;
+}
+.entity-card.excluded {
+  opacity: 0.4;
+}
+.entity-card.excluded .entity-name {
+  text-decoration: line-through;
+}
+
+.entity-name {
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  border-radius: 999px;
+  padding: 0.2rem 0.7rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  margin-bottom: 0.75rem;
+}
+.badge-strong { background: rgba(34,197,94,0.15); color: var(--green); }
+.badge-gap    { background: rgba(234,179,8,0.15);  color: var(--yellow); }
+.badge-missing { background: rgba(239,68,68,0.15); color: var(--red); }
+
+.competitor-freq {
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+.competitor-freq strong { color: var(--text); }
+
+.plain-reason {
+  font-size: 0.82rem;
+  color: var(--muted);
+  line-height: 1.5;
+  margin-bottom: 0.75rem;
+}
+
+/* Toggle switch */
+.toggle-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.82rem;
+}
+
+.toggle-input {
+  display: none;
+}
+
+.toggle-label {
+  position: relative;
+  width: 40px;
+  height: 22px;
+  background: var(--muted);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.toggle-label::after {
+  content: '';
+  position: absolute;
+  top: 3px; left: 3px;
+  width: 16px; height: 16px;
+  background: #fff;
+  border-radius: 50%;
+  transition: transform 0.2s;
+}
+.toggle-input:checked + .toggle-label { background: var(--green); }
+.toggle-input:checked + .toggle-label::after { transform: translateX(18px); }
+
+/* Strategy Insights box */
+.strategy-box {
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 1.5rem 1.5rem 1.5rem 1.75rem;
+  border-left: 4px solid var(--accent);
+  box-shadow: -8px 0 32px var(--accent-glow), var(--shadow);
+  margin-bottom: 2rem;
+}
+.strategy-box .label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--accent);
+  margin-bottom: 0.5rem;
+}
+.strategy-box p {
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: var(--text);
+  margin: 0;
+}
+
+/* CTA button */
+.btn-enhance {
+  display: block;
+  width: 100%;
+  background: linear-gradient(135deg, var(--accent), #db2777);
+  border: none;
+  border-radius: var(--radius);
+  color: #fff;
+  font-size: 1.1rem;
+  font-weight: 700;
+  padding: 1rem 2rem;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: center;
+  text-decoration: none;
+  transition: opacity 0.2s;
+  margin-top: 1rem;
+}
+.btn-enhance:hover { opacity: 0.9; color: #fff; }
+
+/* Social wall */
+.social-wall-title {
+  font-size: 1.8rem;
+  font-weight: 900;
+  background: linear-gradient(135deg, var(--accent), #db2777);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-bottom: 1rem;
+}
+.social-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 1rem;
+}
+.social-card {
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 1.25rem;
+  box-shadow: var(--shadow);
+  transition: transform 0.2s, box-shadow 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+.social-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 40px rgba(0,0,0,0.5);
+}
+.social-icon { flex-shrink: 0; }
+
+.yt-preview { position: relative; cursor: pointer; }
+.yt-preview img { width: 100%; border-radius: 8px; display: block; }
+.yt-play {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%,-50%);
+  width: 48px; height: 48px;
+  background: rgba(0,0,0,0.7);
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+}
+.yt-preview iframe { width: 100%; border-radius: 8px; aspect-ratio: 16/9; border: none; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="entity-wrap">
+  <h1>Entity Gap Analysis</h1>
+  <p class="subtitle">Discover what your competitors mention that you're missing — and close the gap.</p>
+
+  <!-- Stepper -->
+  <div class="stepper" id="stepper">
+    <div class="step {% if analysis %}done{% endif %}" id="step1">🔍 Scanning Competitors…</div>
+    <div class="step {% if analysis %}done{% endif %}" id="step2">🧠 Identifying High-Value Keywords…</div>
+    <div class="step {% if analysis %}done{% endif %}" id="step3">✨ Ready to Optimize.</div>
+  </div>
+
+  <!-- Form -->
+  <div class="card">
+    <form method="POST" action="{{ url_for('entity.analyze') }}" id="analyze-form">
+      <div class="form-row">
+        <div class="field">
+          <label>Project / Client</label>
+          <select name="project_id" required>
+            <option value="">Select a project…</option>
+            {% for p in projects %}
+            <option value="{{ p.id }}" {% if project and p.id == project.id %}selected{% endif %}>
+              {{ p.client.name }} — {{ p.name }}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label>Niche Override</label>
+          <input type="text" name="niche" placeholder="e.g. barbershop, dentist…"
+                 value="{{ analysis.niche if analysis else '' }}">
+        </div>
+        <div class="field">
+          <label>Location Override</label>
+          <input type="text" name="location" placeholder="e.g. Sarasota, FL"
+                 value="{{ analysis.location if analysis else '' }}">
+        </div>
+      </div>
+      <button type="submit" class="btn-magic" id="analyze-btn">🔍 Run Entity Gap Analysis</button>
+    </form>
+  </div>
+
+  {% if analysis %}
+  <!-- Entity Cards -->
+  <div class="entity-grid" id="entity-grid">
+    {% set ents = entities or [] %}
+    {% for e in ents %}
+    {% set status = e.coverage_status | default('missing') %}
+    <div class="entity-card" data-entity="{{ e.entity | escape }}" data-analysis-id="{{ analysis.id }}">
+      <div class="entity-name">{{ e.entity }}</div>
+      {% if status == 'strong' %}
+      <span class="status-badge badge-strong">✅ High Coverage</span>
+      {% elif status == 'gap' %}
+      <span class="status-badge badge-gap">⚠️ Gap Detected</span>
+      {% else %}
+      <span class="status-badge badge-missing">🔴 Missing Opportunity</span>
+      {% endif %}
+      <div class="competitor-freq">
+        Competitors mention this <strong>{{ e.competitor_frequency }}x</strong>
+      </div>
+      <div class="plain-reason">{{ e.plain_english_reason }}</div>
+      <div class="toggle-wrap">
+        <input type="checkbox" class="toggle-input entity-toggle"
+               id="toggle-{{ loop.index }}" checked
+               data-entity="{{ e.entity | escape }}">
+        <label class="toggle-label" for="toggle-{{ loop.index }}"></label>
+        <span>Include in content</span>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- Strategy Insights -->
+  {% if summary %}
+  <div class="strategy-box">
+    <div class="label">💡 Strategy Insight</div>
+    <p>{{ summary }}</p>
+  </div>
+  {% endif %}
+
+  <!-- CTA -->
+  <form method="POST" action="{{ url_for('content.generate') }}">
+    <input type="hidden" name="analysis_id" value="{{ analysis.id }}">
+    <button type="submit" class="btn-enhance">✨ Generate Content with These Entities</button>
+  </form>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts_extra %}
+<script>
+(function() {
+  // Stepper animation on form submit
+  var form = document.getElementById('analyze-form');
+  var steps = [
+    document.getElementById('step1'),
+    document.getElementById('step2'),
+    document.getElementById('step3')
+  ];
+
+  if (form) {
+    form.addEventListener('submit', function() {
+      steps.forEach(function(s) { s.classList.add('loading'); });
+    });
+  }
+
+  // IntersectionObserver for entity cards
+  var io = new IntersectionObserver(function(entries) {
+    entries.forEach(function(entry, idx) {
+      if (entry.isIntersecting) {
+        setTimeout(function() {
+          entry.target.classList.add('visible');
+        }, idx * 80);
+        io.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.05 });
+
+  document.querySelectorAll('.entity-card').forEach(function(card) {
+    io.observe(card);
+  });
+
+  // Toggle include/exclude + debounced POST
+  var excludeTimer = null;
+  var analysisId = null;
+
+  document.querySelectorAll('.entity-toggle').forEach(function(toggle) {
+    var card = toggle.closest('.entity-card');
+    if (card) analysisId = card.getAttribute('data-analysis-id');
+
+    toggle.addEventListener('change', function() {
+      var card = this.closest('.entity-card');
+      if (this.checked) {
+        card.classList.remove('excluded');
+      } else {
+        card.classList.add('excluded');
+      }
+      scheduleSync();
+    });
+  });
+
+  function scheduleSync() {
+    clearTimeout(excludeTimer);
+    excludeTimer = setTimeout(syncExclusions, 500);
+  }
+
+  function syncExclusions() {
+    if (!analysisId) return;
+    var excluded = [];
+    document.querySelectorAll('.entity-toggle:not(:checked)').forEach(function(t) {
+      excluded.push(t.getAttribute('data-entity'));
+    });
+    fetch('/entity/apply/' + analysisId, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({excluded_entities: excluded})
+    });
+  }
+
+  // YouTube lazy-load swap
+  document.querySelectorAll('.yt-preview').forEach(function(wrap) {
+    wrap.addEventListener('click', function() {
+      var src = this.getAttribute('data-src');
+      if (!src) return;
+      var iframe = document.createElement('iframe');
+      iframe.src = src;
+      iframe.allow = 'accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture';
+      iframe.allowFullscreen = true;
+      this.innerHTML = '';
+      this.appendChild(iframe);
+    });
+  });
+})();
+</script>
+{% endblock %}

@@ -1,5 +1,7 @@
 """Context-aware OpenAI content generation service."""
 import json
+import re
+from typing import Any
 from openai import OpenAI
 
 # Color scheme definitions used in the HTML5 landing page prompt
@@ -211,3 +213,171 @@ def generate_schema_markup(client_data: dict) -> str:
         schema['url'] = client_data['website']
 
     return f'<script type="application/ld+json">\n{json.dumps(schema, indent=2)}\n</script>'
+
+
+def perform_entity_gap_analysis(
+    niche: str,
+    location: str,
+    api_key: str,
+) -> list[dict[str, Any]]:
+    """
+    Call GPT-4o to perform a competitive SERP entity gap analysis.
+
+    Returns a list of exactly 10 entity objects with keys:
+    entity, coverage_status, competitor_frequency, plain_english_reason,
+    content_prompt_injection.
+    """
+    openai_client = OpenAI(api_key=api_key)
+
+    system_prompt = "You are an expert NLP analyst performing competitive SERP analysis."
+
+    user_prompt = (
+        f"Perform a competitive SERP entity gap analysis for a {niche} business in {location}.\n\n"
+        "Return a JSON array of EXACTLY 10 entity objects. "
+        "Each object must have these keys:\n"
+        '- "entity": short entity name (e.g. "taper fade")\n'
+        '- "coverage_status": one of "missing", "gap", or "strong"\n'
+        '- "competitor_frequency": integer — how many times top competitors mention it\n'
+        '- "plain_english_reason": 1-2 sentence explanation for a non-technical business owner\n'
+        '- "content_prompt_injection": short phrase to inject into content prompts\n\n'
+        "Return ONLY the JSON array. No markdown, no code fences, no commentary."
+    )
+
+    response = openai_client.chat.completions.create(
+        model="gpt-4o",
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ],
+        max_tokens=1500,
+        temperature=0.4,
+    )
+
+    raw = response.choices[0].message.content.strip()
+    raw = re.sub(r"^```(?:json)?\s*", "", raw)
+    raw = re.sub(r"\s*```$", "", raw)
+    entities: list[dict[str, Any]] = json.loads(raw)
+    return entities
+
+
+def generate_entity_strategy_summary(
+    entities: list[dict[str, Any]],
+    niche: str,
+    location: str,
+    api_key: str,
+) -> str:
+    """
+    Return a short 2-sentence ELI5 explanation of the most critical entity gap.
+
+    Parameters
+    ----------
+    entities:
+        The list returned by ``perform_entity_gap_analysis``.
+    niche:
+        Business niche string.
+    location:
+        Business location string.
+    api_key:
+        OpenAI API key.
+    """
+    openai_client = OpenAI(api_key=api_key)
+
+    missing = [e for e in entities if e.get("coverage_status") == "missing"]
+    gap = [e for e in entities if e.get("coverage_status") == "gap"]
+    critical = (missing + gap)[:3]
+    critical_names = ", ".join(e["entity"] for e in critical) if critical else "various topics"
+
+    user_prompt = (
+        f"A {niche} business in {location} is missing coverage on: {critical_names}. "
+        "Write exactly 2 sentences explaining why this matters, in plain English a "
+        "non-technical business owner can understand. No jargon. Be specific and actionable."
+    )
+
+    response = openai_client.chat.completions.create(
+        model="gpt-4o",
+        messages=[
+            {"role": "system", "content": "You are a plain-English SEO advisor."},
+            {"role": "user", "content": user_prompt},
+        ],
+        max_tokens=150,
+        temperature=0.5,
+    )
+    return response.choices[0].message.content.strip()
+
+
+def generate_content_with_entities(
+    client_name: str,
+    business_type: str,
+    niche: str,
+    location: str,
+    target_keywords: str,
+    target_entities: list[str],
+    content_type: str = 'article',
+    tone: str = 'professional',
+    extra_context: str = '',
+    api_key: str = '',
+    phone: str = '',
+    website: str = '',
+) -> str:
+    """
+    Generate SEO content using GPT-4o with entity injection.
+
+    Same behaviour as ``generate_content`` but accepts an additional
+    ``target_entities`` parameter whose values are woven into both
+    the system and user prompts.
+
+    Parameters
+    ----------
+    target_entities:
+        List of entity strings that must appear naturally in the output.
+    """
+    openai_client = OpenAI(api_key=api_key)
+
+    entities_str = ", ".join(target_entities) if target_entities else ""
+
+    system_prompt = (
+        f"You are writing content for a {business_type} named {client_name} located in {location}. "
+        f"This is a {niche} business. "
+        f"Write content that is SPECIFICALLY relevant to this business — use terminology, concerns, "
+        f"and language appropriate for a {niche}. "
+        f"Do NOT use generic marketing or corporate language unless this is explicitly a marketing "
+        f"or corporate client. "
+        f"Tone: {tone}. Write in valid HTML with proper headings, paragraphs and lists."
+    )
+    if entities_str:
+        system_prompt += (
+            f" You MUST naturally include these specific entities in the content "
+            f"(work them in contextually, never force them): {entities_str}."
+        )
+
+    user_prompt = (
+        f"Create a {content_type.replace('_', ' ')} for {client_name}, a {business_type} in {location}.\n"
+        f"Business niche: {niche}\n"
+        f"Target keywords to incorporate naturally: {target_keywords}\n"
+    )
+    if entities_str:
+        user_prompt += f"Target entities to weave in naturally: {entities_str}\n"
+    if extra_context:
+        user_prompt += f"Additional context: {extra_context}\n"
+    user_prompt += (
+        "\nRequirements:\n"
+        "- Use the target keywords and entities naturally throughout the content\n"
+        "- Include a compelling headline (H1)\n"
+        "- Use subheadings (H2, H3) to organise sections\n"
+        "- Write at least 1200 words\n"
+        "- Include a clear call-to-action relevant to the business\n"
+        "- Make the content genuinely useful and informative for the target audience\n"
+        "- Each target entity should appear at least once in a natural context\n"
+    )
+
+    response = openai_client.chat.completions.create(
+        model="gpt-4o",
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ],
+        max_tokens=12000,
+        temperature=0.7,
+    )
+    return response.choices[0].message.content
+
