@@ -215,6 +215,8 @@ class HTML5PageBuilder:
         body = _dispatch[layout](config, palette)
         schema = self._build_schema_markup(config)
 
+        scripts = self._build_page_scripts()
+
         return "\n".join([
             "<!DOCTYPE html>",
             '<html lang="en">',
@@ -222,6 +224,7 @@ class HTML5PageBuilder:
             "<body>",
             body,
             schema,
+            scripts,
             "</body>",
             "</html>",
         ])
@@ -865,6 +868,134 @@ class HTML5PageBuilder:
     # Shared section builders
     # -----------------------------------------------------------------------
 
+    def _build_page_scripts(self) -> str:
+        """Return a self-contained <script> block injected before </body>."""
+        return """<script>
+(function () {
+  'use strict';
+
+  /* ── Smooth scroll ─────────────────────────────────────────────────── */
+  document.documentElement.style.scrollBehavior = 'smooth';
+
+  /* ── Sticky header shadow ──────────────────────────────────────────── */
+  (function () {
+    var style = document.createElement('style');
+    style.textContent = 'nav.scrolled{box-shadow:0 4px 20px rgba(0,0,0,.15);}';
+    document.head.appendChild(style);
+    function onScroll() {
+      var navs = document.querySelectorAll('nav');
+      navs.forEach(function (nav) {
+        if (window.scrollY > 10) { nav.classList.add('scrolled'); }
+        else { nav.classList.remove('scrolled'); }
+      });
+    }
+    window.addEventListener('scroll', onScroll, { passive: true });
+  }());
+
+  /* ── Reveal animation CSS ──────────────────────────────────────────── */
+  (function () {
+    var style = document.createElement('style');
+    style.textContent = [
+      '.reveal{opacity:0;transform:translateY(24px);transition:opacity .5s ease,transform .5s ease;}',
+      '.reveal.is-visible{opacity:1;transform:none;}'
+    ].join('');
+    document.head.appendChild(style);
+  }());
+
+  document.addEventListener('DOMContentLoaded', function () {
+
+    /* ── Add reveal class to key elements ────────────────────────────── */
+    var revealSelectors = [
+      '.feature-card', '.metric-card', '.benefit-list li',
+      '.testimonial-card', '.stat'
+    ];
+    revealSelectors.forEach(function (sel) {
+      document.querySelectorAll(sel).forEach(function (el) {
+        el.classList.add('reveal');
+      });
+    });
+
+    /* ── Scroll-reveal IntersectionObserver ──────────────────────────── */
+    if ('IntersectionObserver' in window) {
+      var revealObserver = new IntersectionObserver(function (entries) {
+        entries.forEach(function (entry) {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('is-visible');
+            revealObserver.unobserve(entry.target);
+          }
+        });
+      }, { threshold: 0.12 });
+      document.querySelectorAll('.reveal').forEach(function (el) {
+        revealObserver.observe(el);
+      });
+    } else {
+      document.querySelectorAll('.reveal').forEach(function (el) {
+        el.classList.add('is-visible');
+      });
+    }
+
+    /* ── Animated counters on scroll ─────────────────────────────────── */
+    if ('IntersectionObserver' in window) {
+      var counterObserver = new IntersectionObserver(function (entries) {
+        entries.forEach(function (entry) {
+          if (!entry.isIntersecting) { return; }
+          counterObserver.unobserve(entry.target);
+          var el = entry.target;
+          var rawText = el.textContent.trim();
+          var numMatch = rawText.match(/[\\d,.]+/);
+          if (!numMatch) { return; }
+          var numStr = numMatch[0].replace(/,/g, '');
+          var target = parseFloat(numStr);
+          if (isNaN(target)) { return; }
+          var suffix = rawText.slice(numMatch.index + numMatch[0].length);
+          var prefix = rawText.slice(0, numMatch.index);
+          var duration = 1200;
+          var startTime = null;
+          function easeOutQuad(t) { return t * (2 - t); }
+          function step(timestamp) {
+            if (!startTime) { startTime = timestamp; }
+            var progress = Math.min((timestamp - startTime) / duration, 1);
+            var current = Math.floor(easeOutQuad(progress) * target);
+            el.textContent = prefix + current.toLocaleString() + suffix;
+            if (progress < 1) { requestAnimationFrame(step); }
+            else { el.textContent = prefix + target.toLocaleString() + suffix; }
+          }
+          requestAnimationFrame(step);
+        });
+      }, { threshold: 0.2 });
+      document.querySelectorAll('.stat-number, .metric-value, .kpi-value').forEach(function (el) {
+        counterObserver.observe(el);
+      });
+    }
+
+    /* ── FAQ accordion toggle ─────────────────────────────────────────── */
+    document.querySelectorAll('.faq-item').forEach(function (item) {
+      var question = item.querySelector('.faq-question');
+      var answer = item.querySelector('.faq-answer');
+      if (!question || !answer) { return; }
+      answer.style.maxHeight = '0';
+      answer.style.overflow = 'hidden';
+      answer.style.transition = 'max-height 0.35s ease';
+      question.style.cursor = 'pointer';
+      question.setAttribute('aria-expanded', 'false');
+      question.addEventListener('click', function () {
+        var isOpen = answer.style.maxHeight !== '0px' && answer.style.maxHeight !== '0';
+        if (isOpen) {
+          answer.style.maxHeight = '0';
+          question.setAttribute('aria-expanded', 'false');
+          item.classList.remove('faq-open');
+        } else {
+          answer.style.maxHeight = answer.scrollHeight + 'px';
+          question.setAttribute('aria-expanded', 'true');
+          item.classList.add('faq-open');
+        }
+      });
+    });
+
+  });
+}());
+</script>"""
+
     def _build_meta_tags(
         self, config: dict[str, Any], palette: dict[str, str]
     ) -> str:
@@ -1253,4 +1384,14 @@ p{{margin-bottom:1rem;color:var(--text)}}
 @media(max-width:768px){{.footer-grid{{grid-template-columns:1fr}}.footer-bottom{{flex-direction:column}}}}
 /* ─── Animations ─────────────────────────────────────────────────────── */
 @keyframes fadeInUp{{from{{opacity:0;transform:translateY(24px)}}to{{opacity:1;transform:translateY(0)}}}}
+/* ─── FAQ Accordion ──────────────────────────────────────────────────── */
+.faq-question{{cursor:pointer;position:relative;padding-right:2rem;font-weight:600;user-select:none}}
+.faq-question::after{{content:"+";position:absolute;right:0;top:0;font-size:1.2rem;color:var(--text-muted);transition:transform .25s ease}}
+.faq-item.faq-open .faq-question::after{{transform:rotate(45deg)}}
+.faq-answer{{color:var(--text-muted);padding-top:.5rem}}
+/* ─── Scroll-reveal ──────────────────────────────────────────────────── */
+.reveal{{opacity:0;transform:translateY(24px);transition:opacity .5s ease,transform .5s ease}}
+.reveal.is-visible{{opacity:1;transform:none}}
+/* ─── Sticky header scrolled ─────────────────────────────────────────── */
+nav.scrolled{{box-shadow:0 4px 20px rgba(0,0,0,.15)}}
 </style>"""
