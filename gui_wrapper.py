@@ -50,12 +50,15 @@ JEFF_SITE_CONFIG: dict = {
         "zip": "34243",
         "geo_lat": 27.388,
         "geo_long": -82.502,
-        "phone": "",
+        "phone": "",  # Add the client's phone number here when available
     },
     "integrations": {
         "booking_url": "https://jeffthemasterbarber.booksy.com/j",
         "youtube_channel": "https://www.youtube.com/@JEFFREYELBARBEROMASTER",
-        "youtube_channel_id": "JEFFREYELBARBEROMASTER",
+        # Replace these placeholder IDs with real YouTube video/Shorts IDs from the channel.
+        # e.g. the ID in https://www.youtube.com/watch?v=XXXXXXXXXXX is "XXXXXXXXXXX".
+        # Populate up to 16 entries to fill the 4×4 grid; fewer entries are fine.
+        "youtube_video_ids": [],
         "wp_api_user": "orlandovelazquez941",
         "wp_endpoint": "https://jeffthemasterbarber.com/wp-json/wp/v2/",
         "wp_site_url": "https://jeffthemasterbarber.com",
@@ -157,15 +160,19 @@ def _build_jeff_barber_html(video_url: str = "") -> str:
         </div>"""
 
     # Build 4×4 YouTube grid (16 slots)
-    channel_id = inte["youtube_channel_id"]
+    # Uses real video IDs from the config when available; falls back to
+    # clickable thumbnail-style placeholder cards that link to the channel.
+    video_ids: list[str] = list(inte.get("youtube_video_ids") or [])
     yt_grid_items = ""
-    # First 4 slots use playlist/channel embed; remaining are channel links
     for i in range(16):
-        yt_grid_items += f"""
-        <div class="yt-card" data-aos="zoom-in" data-aos-delay="{(i % 4) * 80}">
+        delay = (i % 4) * 80
+        if i < len(video_ids):
+            vid = video_ids[i]
+            yt_grid_items += f"""
+        <div class="yt-card" data-aos="zoom-in" data-aos-delay="{delay}">
           <div class="yt-embed-wrapper">
             <iframe
-              src="https://www.youtube.com/embed?listType=user_uploads&list={channel_id}&index={i + 1}&rel=0&modestbranding=1&autoplay=0"
+              src="https://www.youtube.com/embed/{vid}?rel=0&modestbranding=1"
               title="Jeff the Master Barber — Video {i + 1}"
               frameborder="0"
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
@@ -173,6 +180,23 @@ def _build_jeff_barber_html(video_url: str = "") -> str:
               loading="lazy">
             </iframe>
           </div>
+        </div>"""
+        else:
+            yt_grid_items += f"""
+        <div class="yt-card" data-aos="zoom-in" data-aos-delay="{delay}">
+          <a href="{inte['youtube_channel']}" target="_blank" rel="noopener"
+             style="display:block;text-decoration:none;">
+            <div class="yt-embed-wrapper" style="background:#111;display:flex;align-items:center;justify-content:center;position:relative;">
+              <img src="https://img.youtube.com/vi/default/hqdefault.jpg"
+                   alt="Watch on YouTube" loading="lazy"
+                   style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.35;">
+              <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.5rem;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24"
+                     fill="#c9a84c"><path d="M10 16.5l6-4.5-6-4.5v9zM12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/></svg>
+                <span style="color:#c9a84c;font-size:.75rem;letter-spacing:.08em;text-transform:uppercase;">Watch on YouTube</span>
+              </div>
+            </div>
+          </a>
         </div>"""
 
     schema_json = json.dumps({
@@ -2894,7 +2918,7 @@ with tab_jeff:
                     result = jeff_wp_pub.publish_page(
                         page_id=0,
                         connection_id=jeff_conn_options[jeff_sel_conn],
-                        title="Jeff the Master Barber | Best Barber in Sarasota, FL",
+                        title=seo_jeff["title"],
                         content=jeff_html_out,
                         status=jeff_pub_status,
                     )
