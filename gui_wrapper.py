@@ -55,6 +55,7 @@ JEFF_SITE_CONFIG: dict = {
     "integrations": {
         "booking_url": "https://jeffthemasterbarber.booksy.com/j",
         "youtube_channel": "https://www.youtube.com/@JEFFREYELBARBEROMASTER",
+        "amazon_storefront": "https://www.amazon.com/shop/jeffthemasterbarber",
         # Replace these placeholder IDs with real YouTube video/Shorts IDs from the channel.
         # e.g. the ID in https://www.youtube.com/watch?v=XXXXXXXXXXX is "XXXXXXXXXXX".
         # Populate up to 16 entries to fill the 4×4 grid; fewer entries are fine.
@@ -70,7 +71,7 @@ JEFF_SITE_CONFIG: dict = {
         "color_scheme": "agency_dark",
     },
     "seo": {
-        "title": "Jeff the Master Barber | Best Barber in Sarasota, FL",
+        "title": "JEFF THE MASTER BARBER | Best Barber in Sarasota, FL",
         "meta_description": (
             "Book Jeff the Master Barber — Sarasota's #1 barber for precision haircuts, "
             "beard trims, VIP grooming & mobile barbering. Serving University Park, "
@@ -227,7 +228,7 @@ def _build_jeff_barber_html(video_url: str = "") -> str:
         "priceRange": "$20 – $250",
         "currenciesAccepted": "USD",
         "paymentAccepted": "Cash, Credit Card",
-        "sameAs": [inte["youtube_channel"], inte["booking_url"]],
+        "sameAs": [inte["youtube_channel"], inte["booking_url"], inte["amazon_storefront"]],
         "hasMap": (
             "https://www.google.com/maps/search/?api=1&query="
             + loc["address"].replace(" ", "+")
@@ -524,6 +525,7 @@ def _build_jeff_barber_html(video_url: str = "") -> str:
     <li><a href="#pricing">Pricing</a></li>
     <li><a href="#videos">Videos</a></li>
     <li><a href="#booking">Book</a></li>
+    <li><a href="{inte['amazon_storefront']}" target="_blank" rel="noopener">Shop</a></li>
   </ul>
   <a href="{inte['booking_url']}" target="_blank" rel="noopener" class="btn-book-nav">Book Now</a>
 </nav>
@@ -640,6 +642,23 @@ def _build_jeff_barber_html(video_url: str = "") -> str:
   </div>
 </section>
 
+<!-- ── Amazon Storefront ──────────────────────────────────────────────────── -->
+<section id="amazon-shop" style="background: var(--black); text-align: center; padding: var(--section-pad);">
+  <div class="section-center">
+    <p class="section-label">Shop My Products</p>
+    <h2 class="section-title" data-aos="fade-up">Tools I Use &amp; Recommend</h2>
+    <div class="section-divider" style="margin-inline: auto;"></div>
+  </div>
+  <p data-aos="fade-up" data-aos-delay="80" style="color: var(--light-gray); max-width: 560px; margin: 0 auto 2rem; font-size: 1rem;">
+    Check out the exact clippers, guards, blades, and barbering tools I use every day — available on Amazon.
+  </p>
+  <div data-aos="fade-up" data-aos-delay="160">
+    <a href="{inte['amazon_storefront']}" target="_blank" rel="noopener" class="btn-primary" style="font-size:1rem; padding:.85rem 2.2rem;">
+      🛒 Visit My Amazon Storefront
+    </a>
+  </div>
+</section>
+
 <!-- ── Booking CTA ──────────────────────────────────────────────────────── -->
 <section id="booking">
   <p class="section-label" data-aos="fade-up">Ready for a Fresh Cut?</p>
@@ -663,12 +682,14 @@ def _build_jeff_barber_html(video_url: str = "") -> str:
     <a href="{inte['booking_url']}" target="_blank" rel="noopener">Book on Booksy</a>
     &nbsp;·&nbsp;
     <a href="{inte['youtube_channel']}" target="_blank" rel="noopener">YouTube</a>
+    &nbsp;·&nbsp;
+    <a href="{inte['amazon_storefront']}" target="_blank" rel="noopener">Amazon Shop</a>
   </p>
   <p class="footer-keywords">
-    Best barber in Sarasota · Best barber near me · Mobile barber Sarasota ·
-    Haircut Sarasota FL · Barbers in Sarasota · VIP haircut Sarasota ·
-    Beard trim Sarasota · University Park barber · Whitfield barber ·
-    The Meadows barber · Best mobile barber Sarasota
+    Best Barber in Sarasota · Best Barber Near Me · Mobile Barber Sarasota ·
+    Haircut Sarasota FL · Barbers in Sarasota · VIP Haircut Sarasota ·
+    Beard Trim Sarasota · University Park Barber · Whitfield Barber ·
+    The Meadows Barber · Best Mobile Barber Sarasota
   </p>
 </footer>
 
@@ -2847,6 +2868,7 @@ with tab_jeff:
     col_j2.markdown(
         f"**Booksy:** [{inte_jeff['booking_url']}]({inte_jeff['booking_url']})\n\n"
         f"**YouTube:** [@JEFFREYELBARBEROMASTER]({inte_jeff['youtube_channel']})\n\n"
+        f"**Amazon:** [Shop My Products]({inte_jeff['amazon_storefront']})\n\n"
         f"**WP User:** `{inte_jeff['wp_api_user']}`"
     )
     col_j3.markdown(
