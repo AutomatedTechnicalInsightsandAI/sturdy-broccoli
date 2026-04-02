@@ -50,13 +50,15 @@ JEFF_SITE_CONFIG: dict = {
         "zip": "34243",
         "geo_lat": 27.388,
         "geo_long": -82.502,
-        "phone": "",  # Add the client's phone number here when available
+        "phone": "(978) 376-3088",
     },
     "integrations": {
         "booking_url": "https://jeffthemasterbarber.booksy.com/j",
         "youtube_channel": "https://www.youtube.com/@JEFFREYELBARBEROMASTER",
-        "amazon_storefront": "https://www.amazon.com/shop/jeffthemasterbarber",
-        # Replace these placeholder IDs with real YouTube video/Shorts IDs from the channel.
+        "amazon_storefront": "https://www.amazon.com/shop/jeffthemasterbarber?ccs_id=9b4e6906-aace-4d70-8bd1-9387b7fa4185",
+        # Google Business Profile review link — update this value if the URL changes.
+        "google_review_url": "https://g.page/r/CdsSrY1a2n6NEAI/review",
+        # Replace placeholder IDs with real YouTube video/Shorts IDs from the channel.
         # e.g. the ID in https://www.youtube.com/watch?v=XXXXXXXXXXX is "XXXXXXXXXXX".
         # Populate up to 16 entries to fill the 4×4 grid; fewer entries are fine.
         "youtube_video_ids": [],
@@ -65,73 +67,62 @@ JEFF_SITE_CONFIG: dict = {
         "wp_site_url": "https://jeffthemasterbarber.com",
     },
     "ui_elements": {
-        "background_fx": "video_overlay_dark_gritty",
-        "animation_style": "fade_on_scroll_cards",
+        "background_fx": "premium_light",
+        "animation_style": "scroll_reveal_opposing",
         "grid_layout": "4x4_shorts_vids",
-        "color_scheme": "agency_dark",
+        "color_scheme": "premium_light",
     },
     "seo": {
-        "title": "JEFF THE MASTER BARBER | Best Barber in Sarasota, FL",
+        "title": "Jeff the Master Barber | Best Barber in Sarasota, FL",
         "meta_description": (
-            "Book Jeff the Master Barber — Sarasota's #1 barber for precision haircuts, "
-            "beard trims, VIP grooming & mobile barbering. Serving University Park, "
-            "Whitfield, The Meadows & beyond."
+            "Jeff the Master Barber — precision fades, beard sculpting, and VIP grooming "
+            "in Sarasota, FL. Serving University Park, Whitfield & The Meadows. "
+            "Mobile house calls available. Book on Booksy."
         ),
         "primary_keyword": "best barber in Sarasota FL",
         "target_keywords": [
-            "best barber near me",
-            "best mobile barber",
-            "best barbers in sarasota",
-            "barbers in sarasota",
-            "sarasota barber shop",
-            "mobile barber sarasota",
-            "haircut sarasota fl",
-            "barber near university park sarasota",
-            "barber near whitfield sarasota",
-            "VIP haircut sarasota",
-            "beard trim sarasota",
+            "best barber in Sarasota FL",
+            "barber Sarasota",
+            "mobile barber Sarasota",
+            "haircut Sarasota FL",
+            "barber near University Park Sarasota",
+            "barber near Whitfield Sarasota",
+            "VIP haircut Sarasota",
+            "beard trim Sarasota",
+            "fade haircut Sarasota",
+            "mobile barber house calls Sarasota",
+            "precision fade Sarasota",
         ],
     },
     "pricing": {
         "Standard Haircuts": [
-            ("Adult Haircut (No Beard)", "$40.00 – $50.00"),
-            ("Adult Haircut with Beard", "$50.00 – $60.00"),
-            ("Specialty Cut (Pompadour, Mohawk, etc.)", "$40.00 – $55.00"),
-            ("Kids/Teen Haircut", "$25.00 – $40.00"),
-            ("Senior Haircut", "$30.00 – $35.00"),
+            ("Adult Haircut (No Beard)", "$40.00 \u2013 $50.00"),
+            ("Adult Haircut with Beard", "$50.00 \u2013 $60.00"),
+            ("Specialty Cut (Pompadour, Mohawk, etc.)", "$40.00 \u2013 $55.00"),
+            ("Kids/Teen Haircut", "$25.00 \u2013 $40.00"),
+            ("Senior Haircut", "$30.00 \u2013 $35.00"),
         ],
         "Express & Maintenance": [
-            ("Clean Up (Edge/Lineup only)", "$20.00 – $30.00"),
-            ("Beard Trim & Edge", "$20.00 – $30.00"),
-            ("Eyebrows", "$5.00 – $12.00"),
+            ("Clean Up (Edge/Lineup only)", "$20.00 \u2013 $30.00"),
+            ("Beard Trim & Edge", "$20.00 \u2013 $30.00"),
+            ("Eyebrows", "$5.00 \u2013 $12.00"),
         ],
         "Specialty & Premium": [
             ("VIP Haircut & Beard", "~$100.00"),
-            ("Hair Design", "$10.00 – $20.00"),
+            ("Hair Design", "$10.00 \u2013 $20.00"),
             ("Color Services", "$120.00+"),
-            ("House Calls / Mobile Services", "$125.00 – $250.00+"),
+            ("House Calls / Mobile Services", "$125.00 \u2013 $250.00+"),
         ],
     },
 }
 
 
 # ---------------------------------------------------------------------------
-# Helper: generate the full barber landing-page HTML
+# Helper: generate the premium barber landing-page HTML
 # ---------------------------------------------------------------------------
 
 def _build_jeff_barber_html(video_url: str = "") -> str:
-    """Return a complete dark-mode HTML5 landing page for Jeff the Master Barber.
-
-    Features
-    --------
-    - AOS (Animate On Scroll) scroll-fade card effects
-    - Full-screen background video (or dark gradient fallback) with dark overlay
-    - 4×4 YouTube Shorts / video grid
-    - Pricing table
-    - Booksy "Book Now" CTA
-    - LocalBusiness JSON-LD schema (Sarasota)
-    - SEO meta tags targeting Sarasota barber keywords
-    """
+    """Return a premium HTML5 landing page for Jeff the Master Barber."""
     cfg = JEFF_SITE_CONFIG
     loc = cfg["location"]
     inte = cfg["integrations"]
@@ -145,7 +136,6 @@ def _build_jeff_barber_html(video_url: str = "") -> str:
     <source src="{video_url.strip()}" type="video/mp4">
   </video>"""
 
-    # Build pricing rows
     pricing_html = ""
     for category, items in pricing.items():
         rows = "".join(
@@ -155,56 +145,44 @@ def _build_jeff_barber_html(video_url: str = "") -> str:
         pricing_html += f"""
         <div class="pricing-category" data-aos="fade-up">
           <h3>{category}</h3>
-          <table class="price-table">
-            <tbody>{rows}</tbody>
-          </table>
+          <table class="price-table"><tbody>{rows}</tbody></table>
         </div>"""
 
-    # Build 4×4 YouTube grid (16 slots)
-    # Uses real video IDs from the config when available; falls back to
-    # clickable thumbnail-style placeholder cards that link to the channel.
-    video_ids: list[str] = list(inte.get("youtube_video_ids") or [])
+    video_ids: list = list(inte.get("youtube_video_ids") or [])
     yt_grid_items = ""
     for i in range(16):
-        delay = (i % 4) * 80
+        delay = (i % 4) * 100
         if i < len(video_ids):
             vid = video_ids[i]
             yt_grid_items += f"""
         <div class="yt-card" data-aos="zoom-in" data-aos-delay="{delay}">
           <div class="yt-embed-wrapper">
-            <iframe
-              src="https://www.youtube.com/embed/{vid}?rel=0&modestbranding=1"
-              title="Jeff the Master Barber — Video {i + 1}"
-              frameborder="0"
+            <iframe src="https://www.youtube.com/embed/{vid}?rel=0&modestbranding=1"
+              title="Jeff the Master Barber \u2014 Video {i + 1}" frameborder="0"
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowfullscreen
-              loading="lazy">
-            </iframe>
+              allowfullscreen loading="lazy"></iframe>
           </div>
         </div>"""
         else:
             yt_grid_items += f"""
         <div class="yt-card" data-aos="zoom-in" data-aos-delay="{delay}">
-          <a href="{inte['youtube_channel']}" target="_blank" rel="noopener"
-             style="display:block;text-decoration:none;">
-            <div class="yt-embed-wrapper" style="background:#111;display:flex;align-items:center;justify-content:center;position:relative;">
-              <img src="https://img.youtube.com/vi/default/hqdefault.jpg"
-                   alt="Watch on YouTube" loading="lazy"
-                   style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.35;">
-              <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.5rem;">
-                <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24"
-                     fill="#c9a84c"><path d="M10 16.5l6-4.5-6-4.5v9zM12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/></svg>
-                <span style="color:#c9a84c;font-size:.75rem;letter-spacing:.08em;text-transform:uppercase;">Watch on YouTube</span>
-              </div>
-            </div>
-          </a>
+          <div class="yt-embed-wrapper">
+            <a href="{inte['youtube_channel']}" target="_blank" rel="noopener"
+               aria-label="Watch Jeff the Master Barber on YouTube">
+              <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24"
+                   fill="currentColor" aria-hidden="true">
+                <path d="M10 16.5l6-4.5-6-4.5v9zM12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/>
+              </svg>
+              <span>Watch on YouTube</span>
+            </a>
+          </div>
         </div>"""
 
-    schema_json = json.dumps({
+    schema_data = {
         "@context": "https://schema.org",
-        "@type": "LocalBusiness",
+        "@type": "BarberShop",
         "name": "Jeff the Master Barber",
-        "image": f"https://{cfg['domain']}/logo.jpg",
+        "image": f"https://{cfg['domain']}/og-image.jpg",
         "@id": f"https://{cfg['domain']}",
         "url": f"https://{cfg['domain']}",
         "telephone": loc.get("phone", ""),
@@ -225,10 +203,14 @@ def _build_jeff_barber_html(video_url: str = "") -> str:
             {"@type": "OpeningHoursSpecification", "dayOfWeek": d, "opens": "09:00", "closes": "19:00"}
             for d in ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
         ],
-        "priceRange": "$20 – $250",
+        "priceRange": "$20\u2013$250",
         "currenciesAccepted": "USD",
         "paymentAccepted": "Cash, Credit Card",
-        "sameAs": [inte["youtube_channel"], inte["booking_url"], inte["amazon_storefront"]],
+        "sameAs": [
+            inte["youtube_channel"],
+            inte["booking_url"],
+            inte["amazon_storefront"],
+        ],
         "hasMap": (
             "https://www.google.com/maps/search/?api=1&query="
             + loc["address"].replace(" ", "+")
@@ -238,10 +220,88 @@ def _build_jeff_barber_html(video_url: str = "") -> str:
             {"@type": "Neighborhood", "name": "University Park"},
             {"@type": "Neighborhood", "name": "Whitfield"},
             {"@type": "Neighborhood", "name": "The Meadows"},
+            {"@type": "AdministrativeArea", "name": "Sarasota County"},
         ],
-    }, indent=2)
+        "hasOfferCatalog": {
+            "@type": "OfferCatalog",
+            "name": "Barbering Services",
+            "itemListElement": [
+                {"@type": "Offer", "itemOffered": {"@type": "Service", "name": "Precision Fade Haircut"}},
+                {"@type": "Offer", "itemOffered": {"@type": "Service", "name": "Beard Trim & Sculpting"}},
+                {"@type": "Offer", "itemOffered": {"@type": "Service", "name": "VIP Haircut & Beard Package"}},
+                {"@type": "Offer", "itemOffered": {"@type": "Service", "name": "Mobile Barber House Calls"}},
+                {"@type": "Offer", "itemOffered": {"@type": "Service", "name": "Kids & Teen Haircuts"}},
+            ],
+        },
+    }
+    schema_json = json.dumps(schema_data, indent=2)
+
+    faq_data = {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+            {
+                "@type": "Question",
+                "name": "Where is Jeff the Master Barber located?",
+                "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": (
+                        "Jeff the Master Barber is based at 7612 N Lockwood Ridge Rd, Sarasota, FL 34243, "
+                        "serving clients in University Park, Whitfield, The Meadows, and throughout Sarasota County."
+                    ),
+                },
+            },
+            {
+                "@type": "Question",
+                "name": "Does Jeff offer mobile barber house calls in Sarasota?",
+                "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": (
+                        "Yes. Jeff provides mobile barbering house calls throughout Sarasota County. "
+                        "Mobile service pricing starts at $125. Book via Booksy or call (978) 376-3088."
+                    ),
+                },
+            },
+            {
+                "@type": "Question",
+                "name": "How much does a haircut with Jeff cost?",
+                "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": (
+                        "Adult haircuts start at $40\u2013$50. Haircut with beard is $50\u2013$60. "
+                        "VIP full-service packages start around $100. Prices vary by complexity \u2014 "
+                        "contact Jeff for a custom quote."
+                    ),
+                },
+            },
+            {
+                "@type": "Question",
+                "name": "How do I book an appointment with Jeff the Master Barber?",
+                "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": (
+                        "Book online through Booksy at jeffthemasterbarber.booksy.com, "
+                        "or call/text Jeff directly at (978) 376-3088."
+                    ),
+                },
+            },
+            {
+                "@type": "Question",
+                "name": "What areas does Jeff the Master Barber serve?",
+                "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": (
+                        "Jeff primarily serves Sarasota, FL including University Park, Whitfield, "
+                        "and The Meadows. Mobile house call services extend throughout Sarasota County."
+                    ),
+                },
+            },
+        ],
+    }
+    faq_schema_json = json.dumps(faq_data, indent=2)
 
     keywords_csv = ", ".join(seo["target_keywords"])
+    google_review_url = inte.get("google_review_url", "")
 
     return f"""<!DOCTYPE html>
 <html lang="en">
@@ -255,10 +315,11 @@ def _build_jeff_barber_html(video_url: str = "") -> str:
   <link rel="canonical" href="https://{cfg['domain']}/">
 
   <!-- Open Graph -->
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="en_US">
   <meta property="og:title" content="{seo['title']}">
   <meta property="og:description" content="{seo['meta_description']}">
   <meta property="og:url" content="https://{cfg['domain']}/">
-  <meta property="og:type" content="website">
   <meta property="og:image" content="https://{cfg['domain']}/og-image.jpg">
 
   <!-- Twitter Card -->
@@ -270,435 +331,988 @@ def _build_jeff_barber_html(video_url: str = "") -> str:
   <link rel="stylesheet" href="https://unpkg.com/aos@2.3.4/dist/aos.css">
 
   <style>
-    /* ── Reset & base ──────────────────────────────────────────────── */
+    /* === Reset & Base === */
     *, *::before, *::after {{ box-sizing: border-box; margin: 0; padding: 0; }}
     :root {{
-      --black: #0a0a0a;
-      --dark: #111111;
-      --dark2: #1a1a1a;
-      --gold: #c9a84c;
-      --gold-light: #f0d080;
-      --white: #ffffff;
-      --gray: #888888;
-      --light-gray: #cccccc;
-      --font-display: 'Arial Black', 'Impact', sans-serif;
-      --font-body: 'Arial', 'Helvetica Neue', sans-serif;
-      --section-pad: 5rem 1.5rem;
-      --radius: 8px;
-      --transition: .3s ease;
+      --bg:          #F5F3EF;
+      --bg-alt:      #EDECEA;
+      --surface:     #FFFFFF;
+      --surface-2:   #FAF9F6;
+      --ink:         #1C1A17;
+      --ink-soft:    #3D3B36;
+      --ink-muted:   #6B6960;
+      --ink-faint:   #9B9890;
+      --accent:      #8C6A1A;
+      --accent-mid:  #C9A84C;
+      --accent-pale: #F7EDD0;
+      --border:      rgba(139,105,20,.18);
+      --border-soft: rgba(0,0,0,.08);
+      --shadow-sm:   0 1px 6px rgba(0,0,0,.06);
+      --shadow:      0 4px 24px rgba(0,0,0,.09);
+      --shadow-lg:   0 12px 48px rgba(0,0,0,.14);
+      --radius:      14px;
+      --radius-sm:   8px;
+      --transition:  .3s ease;
+      --font-display: Georgia, Cambria, 'Times New Roman', Times, serif;
+      --font-body:   -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+                     'Helvetica Neue', Arial, sans-serif;
+      --section-pad: 5.5rem 1.5rem;
     }}
     html {{ scroll-behavior: smooth; }}
     body {{
-      background: var(--black);
-      color: var(--white);
+      background: var(--bg);
+      color: var(--ink);
       font-family: var(--font-body);
-      line-height: 1.6;
+      line-height: 1.65;
       overflow-x: hidden;
     }}
+    img {{ display: block; max-width: 100%; height: auto; }}
 
-    /* ── Navigation ────────────────────────────────────────────────── */
+    /* === Navigation === */
     nav {{
       position: fixed; top: 0; left: 0; width: 100%; z-index: 1000;
-      background: rgba(10,10,10,.92); backdrop-filter: blur(8px);
+      background: rgba(255,255,255,.96); backdrop-filter: blur(10px);
       display: flex; align-items: center; justify-content: space-between;
-      padding: .9rem 2rem; border-bottom: 1px solid rgba(201,168,76,.25);
+      padding: .9rem 2rem;
+      border-bottom: 1px solid var(--border-soft);
+      box-shadow: var(--shadow-sm);
     }}
-    nav .nav-brand {{
+    .nav-brand {{
       font-family: var(--font-display);
-      font-size: 1.2rem; letter-spacing: .12em; color: var(--gold);
-      text-transform: uppercase;
+      font-size: 1.05rem; letter-spacing: .06em;
+      color: var(--accent); text-transform: uppercase; font-weight: 700;
     }}
-    nav ul {{ list-style: none; display: flex; gap: 2rem; }}
+    nav ul {{ list-style: none; display: flex; gap: 2rem; align-items: center; }}
     nav ul a {{
-      color: var(--light-gray); text-decoration: none; font-size: .9rem;
-      letter-spacing: .06em; text-transform: uppercase;
+      color: var(--ink-soft); text-decoration: none; font-size: .875rem;
+      letter-spacing: .04em; text-transform: uppercase;
       transition: color var(--transition);
     }}
-    nav ul a:hover {{ color: var(--gold); }}
+    nav ul a:hover {{ color: var(--accent); }}
     .btn-book-nav {{
-      background: var(--gold); color: var(--black);
-      padding: .55rem 1.3rem; border-radius: var(--radius);
-      font-weight: 700; font-size: .85rem; text-decoration: none;
-      letter-spacing: .06em; text-transform: uppercase;
-      transition: background var(--transition);
+      background: var(--accent); color: #fff;
+      padding: .5rem 1.3rem; border-radius: var(--radius-sm);
+      font-size: .85rem; font-weight: 600; text-decoration: none;
+      letter-spacing: .05em; text-transform: uppercase;
+      transition: background var(--transition), transform var(--transition);
     }}
-    .btn-book-nav:hover {{ background: var(--gold-light); }}
+    .btn-book-nav:hover {{ background: #7a5c16; transform: translateY(-1px); }}
+    @media (max-width: 768px) {{
+      nav ul {{ display: none; }}
+    }}
 
-    /* ── Hero ──────────────────────────────────────────────────────── */
+    /* === Buttons === */
+    .btn-primary {{
+      display: inline-block;
+      background: var(--accent); color: #fff;
+      padding: .875rem 2.25rem; border-radius: var(--radius-sm);
+      font-size: 1rem; font-weight: 600; text-decoration: none;
+      letter-spacing: .04em; text-transform: uppercase;
+      transition: background var(--transition), transform var(--transition),
+                  box-shadow var(--transition);
+      box-shadow: 0 4px 16px rgba(140,106,26,.25);
+      border: none; cursor: pointer; font-family: var(--font-body);
+    }}
+    .btn-primary:hover {{
+      background: #7a5c16; transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(140,106,26,.35);
+    }}
+    .btn-outline {{
+      display: inline-block;
+      background: transparent; color: var(--accent);
+      padding: .875rem 2.25rem; border-radius: var(--radius-sm);
+      border: 2px solid var(--accent);
+      font-size: 1rem; font-weight: 600; text-decoration: none;
+      letter-spacing: .04em; text-transform: uppercase;
+      transition: background var(--transition), color var(--transition);
+    }}
+    .btn-outline:hover {{ background: var(--accent); color: #fff; }}
+
+    /* === Hero === */
     #hero {{
       position: relative; min-height: 100vh;
       display: flex; align-items: center; justify-content: center;
-      text-align: center; padding: 6rem 1.5rem 4rem;
+      text-align: center; padding: 7rem 1.5rem 5rem;
       overflow: hidden;
-      background: linear-gradient(160deg, #0a0a0a 0%, #1a1205 60%, #0a0a0a 100%);
+      background: linear-gradient(160deg, #F0EDE6 0%, #E8E3D8 60%, #EDE9E0 100%);
     }}
     #bg-video {{
       position: absolute; top: 50%; left: 50%;
       transform: translate(-50%,-50%);
       min-width: 100%; min-height: 100%;
       width: auto; height: auto;
-      object-fit: cover; z-index: 0; opacity: .35;
+      object-fit: cover; z-index: 0; opacity: .18;
     }}
     .hero-overlay {{
       position: absolute; inset: 0; z-index: 1;
       background: linear-gradient(180deg,
-        rgba(0,0,0,.55) 0%, rgba(0,0,0,.35) 50%, rgba(0,0,0,.8) 100%);
+        rgba(245,243,239,.55) 0%,
+        rgba(245,243,239,.25) 50%,
+        rgba(245,243,239,.7) 100%);
     }}
-    .hero-content {{ position: relative; z-index: 2; max-width: 860px; margin: 0 auto; }}
+    .hero-content {{ position: relative; z-index: 2; max-width: 800px; margin: 0 auto; }}
     .hero-eyebrow {{
-      display: inline-block; margin-bottom: 1rem;
-      font-size: .8rem; letter-spacing: .18em; text-transform: uppercase;
-      color: var(--gold); border: 1px solid var(--gold);
-      padding: .3rem .9rem; border-radius: 2px;
+      display: inline-flex; align-items: center; gap: .75rem;
+      margin-bottom: 1.5rem;
+      font-size: .78rem; letter-spacing: .22em; text-transform: uppercase;
+      color: var(--accent); font-weight: 600;
     }}
-    .hero-title {{
+    .hero-eyebrow::before, .hero-eyebrow::after {{
+      content: ''; display: block; width: 28px; height: 1px;
+      background: var(--accent-mid); opacity: .7;
+    }}
+    h1.hero-title {{
       font-family: var(--font-display);
-      font-size: clamp(2.6rem, 8vw, 5.5rem);
-      font-weight: 900; line-height: 1.05;
-      text-transform: uppercase; letter-spacing: .04em;
-      color: var(--white); margin-bottom: 1.25rem;
+      font-size: clamp(2.8rem, 8vw, 5rem);
+      font-weight: 400; line-height: 1.1;
+      color: var(--ink); margin-bottom: 1.25rem;
     }}
-    .hero-title span {{ color: var(--gold); }}
+    h1.hero-title em {{ font-style: italic; color: var(--accent); }}
     .hero-subtitle {{
-      font-size: clamp(1rem, 2.5vw, 1.25rem);
-      color: var(--light-gray); margin-bottom: 2.2rem; max-width: 580px; margin-inline: auto;
+      font-size: clamp(1rem, 2.5vw, 1.15rem);
+      color: var(--ink-muted); margin-bottom: 2.5rem;
+      max-width: 540px; margin-inline: auto; line-height: 1.75;
     }}
     .hero-cta-group {{ display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }}
-    .btn-primary {{
-      background: var(--gold); color: var(--black);
-      padding: .85rem 2.2rem; border-radius: var(--radius);
-      font-weight: 700; font-size: 1rem; text-decoration: none;
-      letter-spacing: .06em; text-transform: uppercase;
-      transition: background var(--transition), transform var(--transition);
-      display: inline-block;
+    .hero-meta {{
+      margin-top: 3rem;
+      display: flex; gap: 2rem; justify-content: center; flex-wrap: wrap;
+      font-size: .875rem; color: var(--ink-muted);
     }}
-    .btn-primary:hover {{ background: var(--gold-light); transform: translateY(-2px); }}
-    .btn-outline {{
-      background: transparent; color: var(--white);
-      padding: .85rem 2.2rem; border-radius: var(--radius);
-      border: 2px solid var(--white); font-weight: 600; font-size: 1rem;
-      text-decoration: none; letter-spacing: .06em; text-transform: uppercase;
-      transition: border-color var(--transition), color var(--transition);
-      display: inline-block;
+    .hero-meta-item {{
+      display: flex; align-items: center; gap: .4rem;
     }}
-    .btn-outline:hover {{ border-color: var(--gold); color: var(--gold); }}
-    .hero-address {{
-      margin-top: 2rem; font-size: .9rem; color: var(--gray);
-      letter-spacing: .04em;
-    }}
-    .hero-address a {{ color: var(--gold); text-decoration: none; }}
+    .hero-meta-item a {{ color: var(--accent); text-decoration: none; }}
+    .hero-meta-item a:hover {{ text-decoration: underline; }}
 
-    /* ── Section shared ────────────────────────────────────────────── */
+    /* === Shared Section === */
     section {{ padding: var(--section-pad); }}
-    .section-label {{
-      font-size: .78rem; letter-spacing: .2em; text-transform: uppercase;
-      color: var(--gold); margin-bottom: .6rem;
+    .container {{ max-width: 1140px; margin-inline: auto; }}
+    .section-eyebrow {{
+      font-size: .75rem; letter-spacing: .22em; text-transform: uppercase;
+      color: var(--accent); margin-bottom: .6rem; font-weight: 600;
     }}
-    .section-title {{
+    h2.section-title {{
       font-family: var(--font-display);
-      font-size: clamp(1.8rem, 4vw, 2.8rem);
-      text-transform: uppercase; margin-bottom: 1rem; color: var(--white);
+      font-size: clamp(1.8rem, 4vw, 2.6rem);
+      font-weight: 400; color: var(--ink); margin-bottom: 1rem;
     }}
-    .section-divider {{
-      width: 60px; height: 3px; background: var(--gold); margin-bottom: 2.5rem;
+    .section-rule {{
+      width: 48px; height: 2px;
+      background: var(--accent-mid); margin-bottom: 3rem;
     }}
     .section-center {{ text-align: center; }}
-    .section-center .section-divider {{ margin-inline: auto; }}
+    .section-center .section-rule {{ margin-inline: auto; }}
 
-    /* ── Portfolio / Skills Cards ──────────────────────────────────── */
-    #portfolio {{ background: var(--dark2); }}
-    .cards-grid {{
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-      gap: 1.5rem; margin-top: 1rem;
+    /* === Services === */
+    #services {{ background: var(--surface); }}
+    .services-intro {{
+      text-align: center; color: var(--ink-muted);
+      max-width: 600px; margin: 0 auto 3rem;
+      font-size: .95rem; line-height: 1.75;
     }}
-    .card {{
-      background: var(--dark); border: 1px solid rgba(201,168,76,.15);
-      border-radius: var(--radius); overflow: hidden;
-      transition: border-color var(--transition), transform var(--transition);
-    }}
-    .card:hover {{ border-color: var(--gold); transform: translateY(-4px); }}
-    .card-img {{
-      width: 100%; aspect-ratio: 4/3; background: #1e1e1e;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 3rem; color: var(--gold);
-    }}
-    .card-body {{ padding: 1.1rem; }}
-    .card-title {{ font-weight: 700; font-size: 1rem; margin-bottom: .35rem; }}
-    .card-desc {{ font-size: .85rem; color: var(--gray); }}
-
-    /* ── Pricing ───────────────────────────────────────────────────── */
-    #pricing {{ background: var(--black); }}
-    .pricing-grid {{
+    .services-grid {{
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-      gap: 2rem; margin-top: 1rem;
+      gap: 1.75rem;
+    }}
+    .service-card {{
+      background: var(--surface-2);
+      border: 1px solid var(--border-soft);
+      border-radius: var(--radius);
+      overflow: hidden;
+      box-shadow: var(--shadow-sm);
+      transition: box-shadow var(--transition), transform var(--transition),
+                  border-color var(--transition);
+    }}
+    .service-card:hover {{
+      box-shadow: var(--shadow);
+      transform: translateY(-4px);
+      border-color: var(--border);
+    }}
+    .card-photo {{
+      width: 100%; aspect-ratio: 4/3;
+      background: var(--accent-pale);
+      display: flex; align-items: center; justify-content: center;
+      overflow: hidden; position: relative;
+    }}
+    .card-photo img {{
+      width: 100%; height: 100%; object-fit: cover;
+      transition: transform .5s ease;
+      position: absolute; inset: 0;
+    }}
+    .service-card:hover .card-photo img {{ transform: scale(1.04); }}
+    .card-icon {{ color: var(--accent-mid); opacity: .65; }}
+    .card-body {{ padding: 1.4rem; }}
+    .card-title {{
+      font-family: var(--font-display);
+      font-size: 1.05rem; font-weight: 700;
+      color: var(--ink); margin-bottom: .4rem;
+    }}
+    .card-desc {{ font-size: .875rem; color: var(--ink-muted); line-height: 1.65; }}
+
+    /* === Pricing === */
+    #pricing {{ background: var(--bg-alt); }}
+    .pricing-grid {{
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+      gap: 2rem;
     }}
     .pricing-category {{
-      background: var(--dark2);
-      border: 1px solid rgba(201,168,76,.2);
-      border-radius: var(--radius); padding: 1.75rem;
+      background: var(--surface);
+      border: 1px solid var(--border-soft);
+      border-radius: var(--radius);
+      padding: 2rem;
+      box-shadow: var(--shadow-sm);
     }}
     .pricing-category h3 {{
       font-family: var(--font-display);
-      font-size: 1rem; text-transform: uppercase;
-      letter-spacing: .1em; color: var(--gold);
-      margin-bottom: 1.1rem; padding-bottom: .6rem;
-      border-bottom: 1px solid rgba(201,168,76,.25);
+      font-size: .95rem; text-transform: uppercase;
+      letter-spacing: .1em; color: var(--accent);
+      margin-bottom: 1.2rem; padding-bottom: .65rem;
+      border-bottom: 1px solid var(--border);
     }}
     .price-table {{ width: 100%; border-collapse: collapse; }}
-    .price-table tr {{ border-bottom: 1px solid rgba(255,255,255,.06); }}
+    .price-table tr {{ border-bottom: 1px solid var(--border-soft); }}
     .price-table tr:last-child {{ border-bottom: none; }}
-    .price-table td {{ padding: .6rem 0; font-size: .9rem; color: var(--light-gray); }}
+    .price-table td {{ padding: .65rem 0; font-size: .9rem; color: var(--ink-soft); }}
     .price-table td.price {{
-      text-align: right; font-weight: 700; color: var(--gold); white-space: nowrap;
+      text-align: right; font-weight: 600; color: var(--accent);
+      white-space: nowrap; padding-left: 1rem;
     }}
-    .book-cta-bar {{
-      text-align: center; margin-top: 3rem;
+    .pricing-note {{
+      text-align: center; margin-top: 2.5rem;
     }}
-    .book-cta-bar p {{ color: var(--gray); margin-bottom: 1.2rem; font-size: .95rem; }}
+    .pricing-note p {{ font-size: .9rem; color: var(--ink-muted); margin-bottom: 1.25rem; }}
 
-    /* ── YouTube Grid ──────────────────────────────────────────────── */
-    #videos {{ background: var(--dark2); }}
+    /* === Testimonials === */
+    #testimonials {{ background: var(--surface); }}
+    .testimonials-coming-soon {{
+      max-width: 540px; margin-inline: auto; text-align: center;
+      padding: 3rem 2rem;
+      border: 1px dashed var(--border);
+      border-radius: var(--radius);
+      background: var(--bg);
+    }}
+    .testimonials-coming-soon p {{
+      color: var(--ink-muted); font-size: .95rem; line-height: 1.7;
+    }}
+    .testimonials-coming-soon .tcta {{ margin-top: 1.5rem; }}
+
+    /* === Videos === */
+    #videos {{ background: var(--bg-alt); }}
     .yt-grid {{
       display: grid;
       grid-template-columns: repeat(4, 1fr);
-      gap: 1rem; margin-top: 1rem;
+      gap: 1rem;
     }}
-    @media (max-width: 900px) {{ .yt-grid {{ grid-template-columns: repeat(2, 1fr); }} }}
+    @media (max-width: 960px) {{ .yt-grid {{ grid-template-columns: repeat(2, 1fr); }} }}
     @media (max-width: 500px) {{ .yt-grid {{ grid-template-columns: 1fr; }} }}
     .yt-card {{
-      background: var(--dark); border: 1px solid rgba(201,168,76,.12);
-      border-radius: var(--radius); overflow: hidden;
-      transition: border-color var(--transition);
+      background: var(--surface);
+      border: 1px solid var(--border-soft);
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+      box-shadow: var(--shadow-sm);
+      transition: box-shadow var(--transition), transform var(--transition);
     }}
-    .yt-card:hover {{ border-color: var(--gold); }}
+    .yt-card:hover {{ box-shadow: var(--shadow); transform: translateY(-3px); }}
     .yt-embed-wrapper {{
-      position: relative; width: 100%; padding-top: 56.25%; /* 16:9 */
+      position: relative; width: 100%; padding-top: 56.25%;
     }}
     .yt-embed-wrapper iframe {{
       position: absolute; inset: 0; width: 100%; height: 100%;
     }}
+    .yt-embed-wrapper > a {{
+      position: absolute; inset: 0;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      background: var(--bg-alt); gap: .5rem;
+      text-decoration: none; color: var(--accent-mid);
+      font-size: .75rem; letter-spacing: .08em; text-transform: uppercase;
+      transition: background var(--transition), color var(--transition);
+    }}
+    .yt-embed-wrapper > a:hover {{ background: var(--accent-pale); color: var(--accent); }}
     .yt-channel-link {{
-      text-align: center; margin-top: 2.5rem;
+      text-align: center; margin-top: 2.5rem; font-size: .9rem;
     }}
     .yt-channel-link a {{
-      color: var(--gold); text-decoration: none; font-size: .95rem;
-      border-bottom: 1px solid rgba(201,168,76,.4);
+      color: var(--accent); text-decoration: none;
+      border-bottom: 1px solid var(--border); padding-bottom: 1px;
       transition: color var(--transition);
     }}
-    .yt-channel-link a:hover {{ color: var(--gold-light); }}
+    .yt-channel-link a:hover {{ color: #7a5c16; }}
 
-    /* ── Booking ───────────────────────────────────────────────────── */
+    /* === Amazon Storefront === */
+    #amazon-shop {{ background: var(--surface); }}
+    .amazon-card {{
+      max-width: 680px; margin-inline: auto;
+      background: var(--bg);
+      border: 1px solid var(--border-soft);
+      border-radius: var(--radius);
+      padding: 3.5rem 2.5rem; text-align: center;
+      box-shadow: var(--shadow);
+    }}
+    .amazon-card p {{
+      color: var(--ink-muted); margin-bottom: 2rem;
+      max-width: 480px; margin-inline: auto;
+      font-size: .95rem; line-height: 1.7;
+    }}
+
+    /* === Review Funnel === */
+    #reviews {{ background: var(--bg-alt); }}
+    .review-funnel {{ max-width: 580px; margin-inline: auto; }}
+    .review-intro {{
+      text-align: center; margin-bottom: 2rem;
+      font-size: .95rem; color: var(--ink-muted); line-height: 1.7;
+    }}
+    .review-form-card {{
+      background: var(--surface);
+      border: 1px solid var(--border-soft);
+      border-radius: var(--radius);
+      padding: 2.5rem;
+      box-shadow: var(--shadow);
+    }}
+    .rating-prompt {{
+      text-align: center; font-size: .9rem;
+      color: var(--ink-muted); margin-bottom: .75rem;
+    }}
+    .star-rating {{
+      display: flex; gap: .4rem; justify-content: center;
+      margin-bottom: 1.5rem;
+    }}
+    .review-star {{
+      background: none; border: none; cursor: pointer; padding: .2rem;
+      color: var(--ink-faint);
+      transition: color var(--transition), transform var(--transition);
+      line-height: 1;
+    }}
+    .review-star:hover, .review-star.active {{ color: var(--accent-mid); }}
+    .review-star:hover {{ transform: scale(1.2); }}
+    .review-field {{ margin-bottom: 1.25rem; }}
+    .review-field label {{
+      display: block; font-size: .875rem; font-weight: 600;
+      color: var(--ink-soft); margin-bottom: .4rem;
+    }}
+    .review-field input,
+    .review-field textarea {{
+      width: 100%; padding: .75rem 1rem;
+      border: 1px solid var(--border-soft);
+      border-radius: var(--radius-sm);
+      font-family: var(--font-body); font-size: .95rem;
+      color: var(--ink); background: var(--surface-2);
+      transition: border-color var(--transition), box-shadow var(--transition);
+      outline: none; resize: none;
+    }}
+    .review-field input:focus,
+    .review-field textarea:focus {{
+      border-color: var(--accent-mid);
+      box-shadow: 0 0 0 3px rgba(201,168,76,.15);
+    }}
+    .review-field textarea {{ resize: vertical; min-height: 100px; }}
+    .review-error {{
+      color: #c0392b; font-size: .875rem; margin-bottom: 1rem;
+      display: none; text-align: center;
+    }}
+    .review-submit {{
+      width: 100%; padding: .875rem;
+      background: var(--accent); color: #fff;
+      border: none; border-radius: var(--radius-sm);
+      font-family: var(--font-body); font-size: 1rem; font-weight: 600;
+      letter-spacing: .04em; text-transform: uppercase; cursor: pointer;
+      transition: background var(--transition), transform var(--transition);
+      box-shadow: 0 4px 16px rgba(140,106,26,.25);
+    }}
+    .review-submit:hover {{ background: #7a5c16; transform: translateY(-1px); }}
+    .review-result {{
+      text-align: center; padding: 2rem 1rem; display: none;
+    }}
+    .review-result svg {{ color: var(--accent-mid); margin-bottom: 1rem; }}
+    .review-result h3 {{
+      font-family: var(--font-display); font-size: 1.4rem;
+      color: var(--ink); margin-bottom: .75rem;
+    }}
+    .review-result p {{ color: var(--ink-muted); font-size: .95rem; line-height: 1.7; }}
+    .review-result .btn-primary {{ margin-top: 1.5rem; font-size: .95rem; }}
+
+    /* === Booking CTA === */
     #booking {{
-      background: linear-gradient(135deg, #0d0d00 0%, #1a1205 50%, #0d0d00 100%);
-      text-align: center; padding: 6rem 1.5rem;
+      background: linear-gradient(135deg, #2C1F06 0%, #4A3512 50%, #2C1F06 100%);
+      text-align: center; padding: 6.5rem 1.5rem;
     }}
-    #booking .section-title {{ font-size: clamp(2rem, 5vw, 3.5rem); }}
-    #booking p {{ color: var(--light-gray); max-width: 560px; margin: 0 auto 2.5rem; font-size: 1.05rem; }}
+    #booking .section-eyebrow {{ color: var(--accent-mid); }}
+    #booking h2.section-title {{ color: #fff; font-size: clamp(2rem, 5vw, 3.2rem); }}
+    #booking .booking-desc {{
+      color: rgba(255,255,255,.7); max-width: 540px;
+      margin: 0 auto 2.5rem; font-size: 1rem; line-height: 1.75;
+    }}
+    #booking .btn-primary {{
+      background: var(--accent-mid); color: var(--ink);
+      font-size: 1.1rem; padding: 1rem 2.8rem;
+      box-shadow: 0 4px 20px rgba(201,168,76,.35);
+    }}
+    #booking .btn-primary:hover {{ background: #d4b565; color: var(--ink); }}
 
-    /* ── Footer ────────────────────────────────────────────────────── */
-    footer {{
-      background: var(--dark2); border-top: 1px solid rgba(201,168,76,.2);
-      padding: 3rem 1.5rem; text-align: center;
+    /* === FAQ === */
+    #faq {{ background: var(--surface); }}
+    .faq-list {{ max-width: 720px; margin-inline: auto; }}
+    .faq-item {{ border-bottom: 1px solid var(--border-soft); padding: 1.5rem 0; }}
+    .faq-item:last-child {{ border-bottom: none; }}
+    .faq-question {{
+      font-family: var(--font-display);
+      font-size: 1.05rem; font-weight: 700;
+      color: var(--ink); margin-bottom: .5rem;
     }}
-    footer .footer-brand {{
-      font-family: var(--font-display); font-size: 1.3rem;
-      color: var(--gold); text-transform: uppercase; letter-spacing: .12em;
+    .faq-answer {{ font-size: .95rem; color: var(--ink-muted); line-height: 1.7; }}
+
+    /* === Footer === */
+    footer {{
+      background: var(--ink); color: rgba(255,255,255,.65);
+      padding: 3.5rem 1.5rem; text-align: center;
+    }}
+    .footer-brand {{
+      font-family: var(--font-display);
+      font-size: 1.2rem; color: var(--accent-mid);
+      text-transform: uppercase; letter-spacing: .1em;
       margin-bottom: .75rem;
     }}
-    footer p {{ font-size: .85rem; color: var(--gray); line-height: 1.8; }}
-    footer a {{ color: var(--gold); text-decoration: none; }}
-    footer .footer-keywords {{
-      font-size: .75rem; color: #444; margin-top: 1.5rem; max-width: 700px;
-      margin-inline: auto; line-height: 2;
+    footer p {{ font-size: .875rem; line-height: 2; }}
+    footer a {{ color: var(--accent-mid); text-decoration: none; }}
+    footer a:hover {{ color: #d4b565; }}
+    .footer-keywords {{
+      font-size: .75rem; color: rgba(255,255,255,.25);
+      margin-top: 1.5rem; max-width: 700px;
+      margin-inline: auto; line-height: 2.2;
     }}
   </style>
 </head>
 <body>
 
-<!-- ── Navigation ──────────────────────────────────────────────────────── -->
-<nav>
+<!-- ── Navigation ─────────────────────────────────────────────────────── -->
+<nav aria-label="Main navigation">
   <div class="nav-brand">Jeff The Master Barber</div>
   <ul>
-    <li><a href="#portfolio">Portfolio</a></li>
+    <li><a href="#services">Services</a></li>
     <li><a href="#pricing">Pricing</a></li>
     <li><a href="#videos">Videos</a></li>
-    <li><a href="#booking">Book</a></li>
+    <li><a href="#reviews">Reviews</a></li>
     <li><a href="{inte['amazon_storefront']}" target="_blank" rel="noopener">Shop</a></li>
   </ul>
   <a href="{inte['booking_url']}" target="_blank" rel="noopener" class="btn-book-nav">Book Now</a>
 </nav>
 
-<!-- ── Hero ────────────────────────────────────────────────────────────── -->
-<section id="hero">
+<!-- ── Hero ──────────────────────────────────────────────────────────── -->
+<section id="hero" aria-label="Hero">
   {video_section}
   <div class="hero-overlay"></div>
   <div class="hero-content" data-aos="fade-up" data-aos-duration="900">
-    <div class="hero-eyebrow">Sarasota, FL · Precision Barbering</div>
+    <div class="hero-eyebrow">Sarasota, FL &nbsp;&middot;&nbsp; Precision Barbering</div>
     <h1 class="hero-title">
-      Jeff The<br><span>Master</span> Barber
+      Jeff The<br><em>Master</em> Barber
     </h1>
     <p class="hero-subtitle">
-      Precision cuts. Flawless fades. VIP grooming experience.
-      The best barber in Sarasota — now available for mobile house calls.
+      Precision cuts. Flawless fades. A VIP grooming experience built around your schedule.
+      The finest barber in Sarasota &mdash; with mobile house calls available throughout the area.
     </p>
     <div class="hero-cta-group">
-      <a href="{inte['booking_url']}" target="_blank" rel="noopener" class="btn-primary">Book Your Appointment</a>
-      <a href="#pricing" class="btn-outline">View Pricing</a>
-    </div>
-    <p class="hero-address">
-      📍 <a href="https://maps.google.com/?q=7612+N+Lockwood+Ridge+Rd+Sarasota+FL+34243"
-           target="_blank" rel="noopener">
-        7612 N Lockwood Ridge Rd, Sarasota, FL 34243
+      <a href="{inte['booking_url']}" target="_blank" rel="noopener" class="btn-primary">
+        Book Your Appointment
       </a>
+      <a href="#services" class="btn-outline">View Services</a>
+    </div>
+    <div class="hero-meta">
+      <span class="hero-meta-item">
+        <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24"
+             fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+             stroke-linejoin="round" aria-hidden="true">
+          <path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0 1 18 0z"/>
+          <circle cx="12" cy="10" r="3"/>
+        </svg>
+        <a href="https://maps.google.com/?q=7612+N+Lockwood+Ridge+Rd+Sarasota+FL+34243"
+           target="_blank" rel="noopener">7612 N Lockwood Ridge Rd, Sarasota, FL</a>
+      </span>
+      <span class="hero-meta-item">
+        <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24"
+             fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+             stroke-linejoin="round" aria-hidden="true">
+          <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1
+                   4.69 13a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.78 2h3a2 2 0 0 1 2 1.72
+                   12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6
+                   l.9-.9a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+        </svg>
+        <a href="tel:+19783763088">{loc['phone']}</a>
+      </span>
+    </div>
+  </div>
+</section>
+
+<!-- ── Services ───────────────────────────────────────────────────────── -->
+<section id="services" aria-labelledby="services-heading">
+  <div class="container">
+    <div class="section-center">
+      <p class="section-eyebrow">What We Offer</p>
+      <h2 class="section-title" id="services-heading">Premium Services</h2>
+      <div class="section-rule"></div>
+    </div>
+    <p class="services-intro">
+      From precision fades to full VIP packages, every visit is a refined grooming experience
+      tailored to you &mdash; at the shop or at your door anywhere in Sarasota County.
     </p>
+    <div class="services-grid">
+
+      <div class="service-card" data-aos="fade-right" data-aos-delay="0">
+        <div class="card-photo">
+          <!-- Portfolio image: upload /wp-content/uploads/jeff-fade-haircut.jpg -->
+          <img src="/wp-content/uploads/jeff-fade-haircut.jpg"
+               alt="Precision skin fade haircut by Jeff the Master Barber, Sarasota FL"
+               loading="lazy" onerror="this.style.display='none'">
+          <span class="card-icon" aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" width="52" height="52" viewBox="0 0 24 24"
+                 fill="none" stroke="currentColor" stroke-width="1.5"
+                 stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/>
+              <line x1="20" y1="4" x2="8.12" y2="15.88"/>
+              <line x1="14.47" y1="14.48" x2="20" y2="20"/>
+              <line x1="8.12" y1="8.12" x2="12" y2="12"/>
+            </svg>
+          </span>
+        </div>
+        <div class="card-body">
+          <div class="card-title">Precision Fade</div>
+          <div class="card-desc">
+            Skin fade blended to perfection &mdash; clean lines, sharp edges, and a finish
+            that lasts. Sarasota&rsquo;s go-to fade specialist.
+          </div>
+        </div>
+      </div>
+
+      <div class="service-card" data-aos="fade-left" data-aos-delay="0">
+        <div class="card-photo">
+          <!-- Portfolio image: upload /wp-content/uploads/jeff-beard-sculpt.jpg -->
+          <img src="/wp-content/uploads/jeff-beard-sculpt.jpg"
+               alt="Beard sculpting and edge-up by Jeff the Master Barber in Sarasota"
+               loading="lazy" onerror="this.style.display='none'">
+          <span class="card-icon" aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" width="52" height="52" viewBox="0 0 24 24"
+                 fill="none" stroke="currentColor" stroke-width="1.5"
+                 stroke-linecap="round" stroke-linejoin="round">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+              <circle cx="12" cy="7" r="4"/>
+            </svg>
+          </span>
+        </div>
+        <div class="card-body">
+          <div class="card-title">Beard Sculpt</div>
+          <div class="card-desc">
+            Beard shaping, edge-up, and hot-towel finish.
+            A crisp beard line that frames your face with intention.
+          </div>
+        </div>
+      </div>
+
+      <div class="service-card" data-aos="fade-right" data-aos-delay="100">
+        <div class="card-photo">
+          <!-- Portfolio image: upload /wp-content/uploads/jeff-vip-package.jpg -->
+          <img src="/wp-content/uploads/jeff-vip-package.jpg"
+               alt="VIP haircut and full grooming package by Jeff the Master Barber"
+               loading="lazy" onerror="this.style.display='none'">
+          <span class="card-icon" aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" width="52" height="52" viewBox="0 0 24 24"
+                 fill="none" stroke="currentColor" stroke-width="1.5"
+                 stroke-linecap="round" stroke-linejoin="round">
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02
+                               12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+            </svg>
+          </span>
+        </div>
+        <div class="card-body">
+          <div class="card-title">VIP Package</div>
+          <div class="card-desc">
+            Full wash, exfoliation, haircut, beard trim, and scalp massage.
+            The complete luxury grooming experience &mdash; from $100.
+          </div>
+        </div>
+      </div>
+
+      <div class="service-card" data-aos="fade-left" data-aos-delay="100">
+        <div class="card-photo">
+          <!-- Portfolio image: upload /wp-content/uploads/jeff-hair-design.jpg -->
+          <img src="/wp-content/uploads/jeff-hair-design.jpg"
+               alt="Custom hair design and specialty cuts by Jeff the Master Barber"
+               loading="lazy" onerror="this.style.display='none'">
+          <span class="card-icon" aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" width="52" height="52" viewBox="0 0 24 24"
+                 fill="none" stroke="currentColor" stroke-width="1.5"
+                 stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 19l7-7 3 3-7 7-3-3z"/>
+              <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/>
+              <path d="M2 2l7.586 7.586"/>
+              <circle cx="11" cy="11" r="2"/>
+            </svg>
+          </span>
+        </div>
+        <div class="card-body">
+          <div class="card-title">Hair Design</div>
+          <div class="card-desc">
+            Custom hair art and specialty cuts &mdash; Pompadour, Mohawk, Taper, and more.
+            If you can envision it, Jeff can execute it.
+          </div>
+        </div>
+      </div>
+
+      <div class="service-card" data-aos="fade-right" data-aos-delay="200">
+        <div class="card-photo">
+          <!-- Portfolio image: upload /wp-content/uploads/jeff-mobile-service.jpg -->
+          <img src="/wp-content/uploads/jeff-mobile-service.jpg"
+               alt="Mobile barber house calls across Sarasota County by Jeff the Master Barber"
+               loading="lazy" onerror="this.style.display='none'">
+          <span class="card-icon" aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" width="52" height="52" viewBox="0 0 24 24"
+                 fill="none" stroke="currentColor" stroke-width="1.5"
+                 stroke-linecap="round" stroke-linejoin="round">
+              <rect x="1" y="3" width="15" height="13" rx="2"/>
+              <path d="M16 8h4l3 3v5h-7V8z"/>
+              <circle cx="5.5" cy="18.5" r="2.5"/>
+              <circle cx="18.5" cy="18.5" r="2.5"/>
+            </svg>
+          </span>
+        </div>
+        <div class="card-body">
+          <div class="card-title">Mobile Service</div>
+          <div class="card-desc">
+            Jeff comes to you. House calls across Sarasota, University Park,
+            Whitfield, The Meadows, and surrounding areas. From $125.
+          </div>
+        </div>
+      </div>
+
+      <div class="service-card" data-aos="fade-left" data-aos-delay="200">
+        <div class="card-photo">
+          <!-- Portfolio image: upload /wp-content/uploads/jeff-kids-haircut.jpg -->
+          <img src="/wp-content/uploads/jeff-kids-haircut.jpg"
+               alt="Kids and teen haircuts by Jeff the Master Barber in Sarasota FL"
+               loading="lazy" onerror="this.style.display='none'">
+          <span class="card-icon" aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" width="52" height="52" viewBox="0 0 24 24"
+                 fill="none" stroke="currentColor" stroke-width="1.5"
+                 stroke-linecap="round" stroke-linejoin="round">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+              <circle cx="9" cy="7" r="4"/>
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+              <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+            </svg>
+          </span>
+        </div>
+        <div class="card-body">
+          <div class="card-title">Kids &amp; Teens</div>
+          <div class="card-desc">
+            Patient, skilled cuts for younger clients. A calm, comfortable
+            experience from $25.
+          </div>
+        </div>
+      </div>
+
+    </div>
   </div>
 </section>
 
-<!-- ── Portfolio ───────────────────────────────────────────────────────── -->
-<section id="portfolio">
-  <div class="section-center">
-    <p class="section-label">The Work</p>
-    <h2 class="section-title">Portfolio</h2>
-    <div class="section-divider"></div>
+<!-- ── Pricing ────────────────────────────────────────────────────────── -->
+<section id="pricing" aria-labelledby="pricing-heading">
+  <div class="container">
+    <div class="section-center">
+      <p class="section-eyebrow">Transparent Rates</p>
+      <h2 class="section-title" id="pricing-heading">Pricing</h2>
+      <div class="section-rule"></div>
+    </div>
+    <div class="pricing-grid">
+      {pricing_html}
+    </div>
+    <div class="pricing-note" data-aos="fade-up">
+      <p>Prices vary by complexity. Call or text for a custom quote.</p>
+      <a href="{inte['booking_url']}" target="_blank" rel="noopener" class="btn-primary">
+        Book on Booksy
+      </a>
+    </div>
   </div>
-  <div class="cards-grid">
-    <div class="card" data-aos="fade-up" data-aos-delay="0">
-      <div class="card-img">✂️</div>
-      <div class="card-body">
-        <div class="card-title">Precision Fade</div>
-        <div class="card-desc">Skin fade blended to perfection — clean lines, sharp edges.</div>
-      </div>
+</section>
+
+<!-- ── Testimonials ───────────────────────────────────────────────────── -->
+<section id="testimonials" aria-labelledby="testimonials-heading">
+  <div class="container">
+    <div class="section-center">
+      <p class="section-eyebrow">Client Feedback</p>
+      <h2 class="section-title" id="testimonials-heading">What Clients Say</h2>
+      <div class="section-rule"></div>
     </div>
-    <div class="card" data-aos="fade-up" data-aos-delay="80">
-      <div class="card-img">🧔</div>
-      <div class="card-body">
-        <div class="card-title">Beard Sculpt</div>
-        <div class="card-desc">Beard shaping, edge-up, and hot-towel finish.</div>
-      </div>
-    </div>
-    <div class="card" data-aos="fade-up" data-aos-delay="160">
-      <div class="card-img">👑</div>
-      <div class="card-body">
-        <div class="card-title">VIP Package</div>
-        <div class="card-desc">Full wash, exfoliation, haircut, beard trim &amp; scalp massage.</div>
-      </div>
-    </div>
-    <div class="card" data-aos="fade-up" data-aos-delay="240">
-      <div class="card-img">🎨</div>
-      <div class="card-body">
-        <div class="card-title">Hair Design</div>
-        <div class="card-desc">Custom hair art and specialty cuts — Pompadour, Mohawk &amp; more.</div>
-      </div>
-    </div>
-    <div class="card" data-aos="fade-up" data-aos-delay="320">
-      <div class="card-img">🚗</div>
-      <div class="card-body">
-        <div class="card-title">Mobile Service</div>
-        <div class="card-desc">Jeff comes to you — house calls across Sarasota &amp; surrounding areas.</div>
-      </div>
-    </div>
-    <div class="card" data-aos="fade-up" data-aos-delay="400">
-      <div class="card-img">🎓</div>
-      <div class="card-body">
-        <div class="card-title">Kids &amp; Teens</div>
-        <div class="card-desc">Patient, skilled cuts for the younger clients.</div>
+    <div class="testimonials-coming-soon" data-aos="fade-up">
+      <p>
+        Real client reviews are on the way. Once Google reviews are live,
+        they&rsquo;ll be featured here. In the meantime, we&rsquo;d love to
+        hear about your experience.
+      </p>
+      <div class="tcta">
+        <a href="#reviews" class="btn-primary">Leave a Review</a>
       </div>
     </div>
   </div>
 </section>
 
-<!-- ── Pricing ─────────────────────────────────────────────────────────── -->
-<section id="pricing">
-  <div class="section-center">
-    <p class="section-label">Transparent Rates</p>
-    <h2 class="section-title">Pricing</h2>
-    <div class="section-divider"></div>
-  </div>
-  <div class="pricing-grid">
-    {pricing_html}
-  </div>
-  <div class="book-cta-bar" data-aos="fade-up">
-    <p>All prices vary by complexity. Contact Jeff for a custom quote.</p>
-    <a href="{inte['booking_url']}" target="_blank" rel="noopener" class="btn-primary">Book on Booksy</a>
-  </div>
-</section>
-
-<!-- ── YouTube Videos ──────────────────────────────────────────────────── -->
-<section id="videos">
-  <div class="section-center">
-    <p class="section-label">Watch The Work</p>
-    <h2 class="section-title">Videos</h2>
-    <div class="section-divider"></div>
-  </div>
-  <div class="yt-grid">
-    {yt_grid_items}
-  </div>
-  <div class="yt-channel-link" data-aos="fade-up">
-    <a href="{inte['youtube_channel']}" target="_blank" rel="noopener">
-      ▶ View all videos on YouTube @JEFFREYELBARBEROMASTER
-    </a>
+<!-- ── YouTube Videos ─────────────────────────────────────────────────── -->
+<section id="videos" aria-labelledby="videos-heading">
+  <div class="container">
+    <div class="section-center">
+      <p class="section-eyebrow">See the Craft</p>
+      <h2 class="section-title" id="videos-heading">Watch the Work</h2>
+      <div class="section-rule"></div>
+    </div>
+    <div class="yt-grid">
+      {yt_grid_items}
+    </div>
+    <div class="yt-channel-link" data-aos="fade-up">
+      <a href="{inte['youtube_channel']}" target="_blank" rel="noopener">
+        View all videos on YouTube &rarr; @JEFFREYELBARBEROMASTER
+      </a>
+    </div>
   </div>
 </section>
 
-<!-- ── Amazon Storefront ──────────────────────────────────────────────────── -->
-<section id="amazon-shop" style="background: var(--black); text-align: center; padding: var(--section-pad);">
-  <div class="section-center">
-    <p class="section-label">Shop My Products</p>
-    <h2 class="section-title" data-aos="fade-up">Tools I Use &amp; Recommend</h2>
-    <div class="section-divider" style="margin-inline: auto;"></div>
-  </div>
-  <p data-aos="fade-up" data-aos-delay="80" style="color: var(--light-gray); max-width: 560px; margin: 0 auto 2rem; font-size: 1rem;">
-    Check out the exact clippers, guards, blades, and barbering tools I use every day — available on Amazon.
-  </p>
-  <div data-aos="fade-up" data-aos-delay="160">
-    <a href="{inte['amazon_storefront']}" target="_blank" rel="noopener" class="btn-primary" style="font-size:1rem; padding:.85rem 2.2rem;">
-      🛒 Visit My Amazon Storefront
-    </a>
+<!-- ── Amazon Storefront ──────────────────────────────────────────────── -->
+<section id="amazon-shop" aria-labelledby="amazon-heading">
+  <div class="container">
+    <div class="section-center">
+      <p class="section-eyebrow">Shop My Products</p>
+      <h2 class="section-title" id="amazon-heading">Tools I Use &amp; Recommend</h2>
+      <div class="section-rule"></div>
+    </div>
+    <div class="amazon-card" data-aos="fade-up">
+      <p>
+        The exact clippers, guards, blades, and barbering tools I trust every day &mdash;
+        curated on my personal Amazon storefront so you can get the same results at home.
+      </p>
+      <a href="{inte['amazon_storefront']}" target="_blank" rel="noopener" class="btn-primary">
+        Visit My Amazon Storefront
+      </a>
+    </div>
   </div>
 </section>
 
-<!-- ── Booking CTA ──────────────────────────────────────────────────────── -->
-<section id="booking">
-  <p class="section-label" data-aos="fade-up">Ready for a Fresh Cut?</p>
-  <h2 class="section-title" data-aos="fade-up" data-aos-delay="80">Book Your Appointment</h2>
-  <p data-aos="fade-up" data-aos-delay="160">
+<!-- ── Google Review Funnel ───────────────────────────────────────────── -->
+<section id="reviews" aria-labelledby="reviews-heading">
+  <div class="container">
+    <div class="section-center">
+      <p class="section-eyebrow">Your Opinion Matters</p>
+      <h2 class="section-title" id="reviews-heading">Share Your Experience</h2>
+      <div class="section-rule"></div>
+    </div>
+    <div class="review-funnel">
+      <p class="review-intro">
+        Your feedback helps Jeff continue delivering a premium experience to every client
+        in Sarasota. Loved your visit? We&rsquo;d be grateful for a Google review.
+      </p>
+      <div class="review-form-card">
+        <div id="review-form-inner">
+          <form id="review-form" novalidate>
+            <p class="rating-prompt">How would you rate your experience?</p>
+            <div class="star-rating" role="group" aria-label="Star rating">
+              <button type="button" class="review-star" data-value="1" aria-label="1 star">
+                <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36"
+                     viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77
+                           5.82 21.02 7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                </svg>
+              </button>
+              <button type="button" class="review-star" data-value="2" aria-label="2 stars">
+                <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36"
+                     viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77
+                           5.82 21.02 7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                </svg>
+              </button>
+              <button type="button" class="review-star" data-value="3" aria-label="3 stars">
+                <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36"
+                     viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77
+                           5.82 21.02 7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                </svg>
+              </button>
+              <button type="button" class="review-star" data-value="4" aria-label="4 stars">
+                <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36"
+                     viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77
+                           5.82 21.02 7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                </svg>
+              </button>
+              <button type="button" class="review-star" data-value="5" aria-label="5 stars">
+                <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36"
+                     viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77
+                           5.82 21.02 7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                </svg>
+              </button>
+            </div>
+            <input type="hidden" id="review-rating-hidden" value="0">
+            <div class="review-field">
+              <label for="review-name">Your Name <span style="font-weight:400;color:var(--ink-faint);">(optional)</span></label>
+              <input type="text" id="review-name" name="name"
+                     placeholder="e.g. Marcus T." autocomplete="name">
+            </div>
+            <div class="review-field">
+              <label for="review-feedback">Tell us about your visit</label>
+              <textarea id="review-feedback" name="feedback" rows="4"
+                        placeholder="What did you enjoy most? How was the service?"></textarea>
+            </div>
+            <p class="review-error" id="review-error" role="alert">
+              Please select a star rating before submitting.
+            </p>
+            <button type="submit" class="review-submit">Submit My Review</button>
+          </form>
+        </div>
+        <!-- Public (4–5 star) success state -->
+        <div class="review-result" id="review-success-public">
+          <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48"
+               viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"
+               aria-hidden="true">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+          <h3>Thank you so much!</h3>
+          <p>
+            We&rsquo;re thrilled you had a great experience. We&rsquo;re redirecting
+            you to Google to share your review &mdash; it truly makes a difference.
+          </p>
+          <a href="{google_review_url}" target="_blank" rel="noopener" class="btn-primary">
+            Leave a Google Review
+          </a>
+        </div>
+        <!-- Private (1–3 star) success state -->
+        <div class="review-result" id="review-success-private">
+          <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48"
+               viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"
+               aria-hidden="true">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+          </svg>
+          <h3>Thank you for your feedback</h3>
+          <p>
+            We appreciate your honesty. Your comments have been noted and
+            Jeff will use them to continue improving the experience for every client.
+            If you&rsquo;d like to follow up directly, call or text
+            <a href="tel:+19783763088">{loc['phone']}</a>.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Booking CTA ────────────────────────────────────────────────────── -->
+<section id="booking" aria-labelledby="booking-heading">
+  <p class="section-eyebrow" data-aos="fade-up">Ready for a Fresh Cut?</p>
+  <h2 class="section-title" data-aos="fade-up" data-aos-delay="80" id="booking-heading">
+    Book Your Appointment
+  </h2>
+  <p class="booking-desc" data-aos="fade-up" data-aos-delay="160">
     Serving Sarasota, University Park, Whitfield, The Meadows, and surrounding areas.
     Mobile house calls available throughout Sarasota County.
+    Call or text <a href="tel:+19783763088" style="color:var(--accent-mid);">{loc['phone']}</a>.
   </p>
   <div data-aos="fade-up" data-aos-delay="240">
-    <a href="{inte['booking_url']}" target="_blank" rel="noopener" class="btn-primary" style="font-size:1.1rem;padding:1rem 2.8rem;">
+    <a href="{inte['booking_url']}" target="_blank" rel="noopener" class="btn-primary">
       Book Now on Booksy
     </a>
   </div>
 </section>
 
-<!-- ── Footer ──────────────────────────────────────────────────────────── -->
+<!-- ── FAQ ───────────────────────────────────────────────────────────── -->
+<section id="faq" aria-labelledby="faq-heading">
+  <div class="container">
+    <div class="section-center">
+      <p class="section-eyebrow">Common Questions</p>
+      <h2 class="section-title" id="faq-heading">Frequently Asked Questions</h2>
+      <div class="section-rule"></div>
+    </div>
+    <div class="faq-list">
+      <div class="faq-item" data-aos="fade-up">
+        <div class="faq-question">Where is Jeff the Master Barber located?</div>
+        <div class="faq-answer">
+          Jeff is based at 7612 N Lockwood Ridge Rd, Sarasota, FL 34243, serving
+          clients in University Park, Whitfield, The Meadows, and throughout Sarasota County.
+          Mobile house calls are available so Jeff can come to you.
+        </div>
+      </div>
+      <div class="faq-item" data-aos="fade-up">
+        <div class="faq-question">Does Jeff offer mobile barber house calls?</div>
+        <div class="faq-answer">
+          Yes. Jeff travels to your home, office, or event anywhere in Sarasota County.
+          Mobile service pricing starts at $125. Book via Booksy or call
+          <a href="tel:+19783763088">{loc['phone']}</a>.
+        </div>
+      </div>
+      <div class="faq-item" data-aos="fade-up">
+        <div class="faq-question">How much does a haircut cost?</div>
+        <div class="faq-answer">
+          Adult haircuts start at $40&ndash;$50. A haircut with beard trim is $50&ndash;$60.
+          VIP full-service packages start around $100.
+          Prices vary by complexity &mdash; contact Jeff for a custom quote.
+        </div>
+      </div>
+      <div class="faq-item" data-aos="fade-up">
+        <div class="faq-question">How do I book an appointment?</div>
+        <div class="faq-answer">
+          Book online anytime through
+          <a href="{inte['booking_url']}" target="_blank" rel="noopener">Booksy</a>,
+          or call/text Jeff directly at
+          <a href="tel:+19783763088">{loc['phone']}</a>.
+        </div>
+      </div>
+      <div class="faq-item" data-aos="fade-up">
+        <div class="faq-question">What areas of Sarasota does Jeff serve?</div>
+        <div class="faq-answer">
+          Jeff primarily serves Sarasota, FL, with a focus on University Park, Whitfield,
+          and The Meadows neighborhoods. Mobile house call services are available
+          throughout Sarasota County &mdash; just reach out to confirm your area.
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Footer ─────────────────────────────────────────────────────────── -->
 <footer>
   <div class="footer-brand">Jeff The Master Barber</div>
   <p>
-    7612 N Lockwood Ridge Rd, Sarasota, FL 34243<br>
+    7612 N Lockwood Ridge Rd, Sarasota, FL 34243
+    &nbsp;&middot;&nbsp;
+    <a href="tel:+19783763088">{loc['phone']}</a>
+    <br>
     <a href="{inte['booking_url']}" target="_blank" rel="noopener">Book on Booksy</a>
-    &nbsp;·&nbsp;
+    &nbsp;&middot;&nbsp;
     <a href="{inte['youtube_channel']}" target="_blank" rel="noopener">YouTube</a>
-    &nbsp;·&nbsp;
+    &nbsp;&middot;&nbsp;
     <a href="{inte['amazon_storefront']}" target="_blank" rel="noopener">Amazon Shop</a>
+    &nbsp;&middot;&nbsp;
+    <a href="{google_review_url}" target="_blank" rel="noopener">Leave a Review</a>
   </p>
   <p class="footer-keywords">
-    Best Barber in Sarasota · Best Barber Near Me · Mobile Barber Sarasota ·
-    Haircut Sarasota FL · Barbers in Sarasota · VIP Haircut Sarasota ·
-    Beard Trim Sarasota · University Park Barber · Whitfield Barber ·
-    The Meadows Barber · Best Mobile Barber Sarasota
+    Best Barber in Sarasota &middot; Mobile Barber Sarasota &middot;
+    Haircut Sarasota FL &middot; Precision Fade Sarasota &middot;
+    Beard Trim Sarasota &middot; University Park Barber &middot;
+    Whitfield Barber &middot; The Meadows Barber &middot;
+    VIP Haircut Sarasota &middot; Mobile Barber House Calls Sarasota County
   </p>
 </footer>
 
-<!-- ── LocalBusiness Schema Markup ─────────────────────────────────────── -->
+<!-- ── BarberShop Schema ───────────────────────────────────────────────── -->
 <script type="application/ld+json">
 {schema_json}
 </script>
 
-<!-- ── AOS Init ────────────────────────────────────────────────────────── -->
+<!-- ── FAQPage Schema ─────────────────────────────────────────────────── -->
+<script type="application/ld+json">
+{faq_schema_json}
+</script>
+
+<!-- ── AOS Init ───────────────────────────────────────────────────────── -->
 <script src="https://unpkg.com/aos@2.3.4/dist/aos.js"></script>
 <script>
   AOS.init({{
@@ -708,8 +1322,54 @@ def _build_jeff_barber_html(video_url: str = "") -> str:
     offset: 80,
   }});
 </script>
+
+<!-- ── Review Funnel Logic ────────────────────────────────────────────── -->
+<script>
+(function () {{
+  var reviewUrl = "{google_review_url}";
+  var selectedRating = 0;
+  var stars = Array.prototype.slice.call(document.querySelectorAll('.review-star'));
+
+  stars.forEach(function (btn) {{
+    btn.addEventListener('click', function () {{
+      selectedRating = parseInt(this.dataset.value, 10);
+      document.getElementById('review-rating-hidden').value = selectedRating;
+      stars.forEach(function (s) {{
+        var v = parseInt(s.dataset.value, 10);
+        if (v <= selectedRating) {{
+          s.classList.add('active');
+        }} else {{
+          s.classList.remove('active');
+        }}
+      }});
+    }});
+  }});
+
+  document.getElementById('review-form').addEventListener('submit', function (e) {{
+    e.preventDefault();
+    var rating = parseInt(document.getElementById('review-rating-hidden').value || '0', 10);
+    if (rating === 0) {{
+      document.getElementById('review-error').style.display = 'block';
+      return;
+    }}
+    document.getElementById('review-error').style.display = 'none';
+    document.getElementById('review-form-inner').style.display = 'none';
+    if (rating >= 4) {{
+      document.getElementById('review-success-public').style.display = 'block';
+      setTimeout(function () {{
+        window.open(reviewUrl, '_blank');
+      }}, 1800);
+    }} else {{
+      document.getElementById('review-success-private').style.display = 'block';
+    }}
+  }});
+}}());
+</script>
+
 </body>
 </html>"""
+
+
 
 st.set_page_config(
     page_title="Sturdy Broccoli — Enterprise SEO Content Factory",
