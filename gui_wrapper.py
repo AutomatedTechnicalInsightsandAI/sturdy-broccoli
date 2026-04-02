@@ -71,7 +71,7 @@ JEFF_SITE_CONFIG: dict = {
         "color_scheme": "agency_dark",
     },
     "seo": {
-        "title": "JEFF THE MASTER BABER | Best Barber in Sarasota, FL",
+        "title": "JEFF THE MASTER BARBER | Best Barber in Sarasota, FL",
         "meta_description": (
             "Book Jeff the Master Barber — Sarasota's #1 barber for precision haircuts, "
             "beard trims, VIP grooming & mobile barbering. Serving University Park, "
@@ -686,10 +686,10 @@ def _build_jeff_barber_html(video_url: str = "") -> str:
     <a href="{inte['amazon_storefront']}" target="_blank" rel="noopener">Amazon Shop</a>
   </p>
   <p class="footer-keywords">
-    Best barber in Sarasota · Best barber near me · Mobile barber Sarasota ·
-    Haircut Sarasota FL · Barbers in Sarasota · VIP haircut Sarasota ·
-    Beard trim Sarasota · University Park barber · Whitfield barber ·
-    The Meadows barber · Best mobile barber Sarasota
+    Best Barber in Sarasota · Best Barber Near Me · Mobile Barber Sarasota ·
+    Haircut Sarasota FL · Barbers in Sarasota · VIP Haircut Sarasota ·
+    Beard Trim Sarasota · University Park Barber · Whitfield Barber ·
+    The Meadows Barber · Best Mobile Barber Sarasota
   </p>
 </footer>
 
