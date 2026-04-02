@@ -34,6 +34,662 @@ def _json_default(obj: object) -> str:
         return obj.isoformat()
     raise TypeError(f"Object of type {type(obj).__name__} is not JSON serialisable")
 
+
+# ---------------------------------------------------------------------------
+# Jeff the Master Barber — Client Configuration (non-sensitive data only)
+# Credentials (WordPress Application Password) must be entered at runtime
+# in the 🪒 Jeff the Master Barber tab; they are never stored in source code.
+# ---------------------------------------------------------------------------
+JEFF_SITE_CONFIG: dict = {
+    "client": "JEFF THE MASTER BARBER",
+    "domain": "jeffthemasterbarber.com",
+    "location": {
+        "address": "7612 N Lockwood Ridge Rd, Sarasota, FL 34243",
+        "city": "Sarasota",
+        "state": "FL",
+        "zip": "34243",
+        "geo_lat": 27.388,
+        "geo_long": -82.502,
+        "phone": "",  # Add the client's phone number here when available
+    },
+    "integrations": {
+        "booking_url": "https://jeffthemasterbarber.booksy.com/j",
+        "youtube_channel": "https://www.youtube.com/@JEFFREYELBARBEROMASTER",
+        # Replace these placeholder IDs with real YouTube video/Shorts IDs from the channel.
+        # e.g. the ID in https://www.youtube.com/watch?v=XXXXXXXXXXX is "XXXXXXXXXXX".
+        # Populate up to 16 entries to fill the 4×4 grid; fewer entries are fine.
+        "youtube_video_ids": [],
+        "wp_api_user": "orlandovelazquez941",
+        "wp_endpoint": "https://jeffthemasterbarber.com/wp-json/wp/v2/",
+        "wp_site_url": "https://jeffthemasterbarber.com",
+    },
+    "ui_elements": {
+        "background_fx": "video_overlay_dark_gritty",
+        "animation_style": "fade_on_scroll_cards",
+        "grid_layout": "4x4_shorts_vids",
+        "color_scheme": "agency_dark",
+    },
+    "seo": {
+        "title": "Jeff the Master Barber | Best Barber in Sarasota, FL",
+        "meta_description": (
+            "Book Jeff the Master Barber — Sarasota's #1 barber for precision haircuts, "
+            "beard trims, VIP grooming & mobile barbering. Serving University Park, "
+            "Whitfield, The Meadows & beyond."
+        ),
+        "primary_keyword": "best barber in Sarasota FL",
+        "target_keywords": [
+            "best barber near me",
+            "best mobile barber",
+            "best barbers in sarasota",
+            "barbers in sarasota",
+            "sarasota barber shop",
+            "mobile barber sarasota",
+            "haircut sarasota fl",
+            "barber near university park sarasota",
+            "barber near whitfield sarasota",
+            "VIP haircut sarasota",
+            "beard trim sarasota",
+        ],
+    },
+    "pricing": {
+        "Standard Haircuts": [
+            ("Adult Haircut (No Beard)", "$40.00 – $50.00"),
+            ("Adult Haircut with Beard", "$50.00 – $60.00"),
+            ("Specialty Cut (Pompadour, Mohawk, etc.)", "$40.00 – $55.00"),
+            ("Kids/Teen Haircut", "$25.00 – $40.00"),
+            ("Senior Haircut", "$30.00 – $35.00"),
+        ],
+        "Express & Maintenance": [
+            ("Clean Up (Edge/Lineup only)", "$20.00 – $30.00"),
+            ("Beard Trim & Edge", "$20.00 – $30.00"),
+            ("Eyebrows", "$5.00 – $12.00"),
+        ],
+        "Specialty & Premium": [
+            ("VIP Haircut & Beard", "~$100.00"),
+            ("Hair Design", "$10.00 – $20.00"),
+            ("Color Services", "$120.00+"),
+            ("House Calls / Mobile Services", "$125.00 – $250.00+"),
+        ],
+    },
+}
+
+
+# ---------------------------------------------------------------------------
+# Helper: generate the full barber landing-page HTML
+# ---------------------------------------------------------------------------
+
+def _build_jeff_barber_html(video_url: str = "") -> str:
+    """Return a complete dark-mode HTML5 landing page for Jeff the Master Barber.
+
+    Features
+    --------
+    - AOS (Animate On Scroll) scroll-fade card effects
+    - Full-screen background video (or dark gradient fallback) with dark overlay
+    - 4×4 YouTube Shorts / video grid
+    - Pricing table
+    - Booksy "Book Now" CTA
+    - LocalBusiness JSON-LD schema (Sarasota)
+    - SEO meta tags targeting Sarasota barber keywords
+    """
+    cfg = JEFF_SITE_CONFIG
+    loc = cfg["location"]
+    inte = cfg["integrations"]
+    seo = cfg["seo"]
+    pricing = cfg["pricing"]
+
+    video_section = ""
+    if video_url.strip():
+        video_section = f"""
+  <video autoplay muted loop playsinline id="bg-video">
+    <source src="{video_url.strip()}" type="video/mp4">
+  </video>"""
+
+    # Build pricing rows
+    pricing_html = ""
+    for category, items in pricing.items():
+        rows = "".join(
+            f'<tr><td>{name}</td><td class="price">{price}</td></tr>'
+            for name, price in items
+        )
+        pricing_html += f"""
+        <div class="pricing-category" data-aos="fade-up">
+          <h3>{category}</h3>
+          <table class="price-table">
+            <tbody>{rows}</tbody>
+          </table>
+        </div>"""
+
+    # Build 4×4 YouTube grid (16 slots)
+    # Uses real video IDs from the config when available; falls back to
+    # clickable thumbnail-style placeholder cards that link to the channel.
+    video_ids: list[str] = list(inte.get("youtube_video_ids") or [])
+    yt_grid_items = ""
+    for i in range(16):
+        delay = (i % 4) * 80
+        if i < len(video_ids):
+            vid = video_ids[i]
+            yt_grid_items += f"""
+        <div class="yt-card" data-aos="zoom-in" data-aos-delay="{delay}">
+          <div class="yt-embed-wrapper">
+            <iframe
+              src="https://www.youtube.com/embed/{vid}?rel=0&modestbranding=1"
+              title="Jeff the Master Barber — Video {i + 1}"
+              frameborder="0"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowfullscreen
+              loading="lazy">
+            </iframe>
+          </div>
+        </div>"""
+        else:
+            yt_grid_items += f"""
+        <div class="yt-card" data-aos="zoom-in" data-aos-delay="{delay}">
+          <a href="{inte['youtube_channel']}" target="_blank" rel="noopener"
+             style="display:block;text-decoration:none;">
+            <div class="yt-embed-wrapper" style="background:#111;display:flex;align-items:center;justify-content:center;position:relative;">
+              <img src="https://img.youtube.com/vi/default/hqdefault.jpg"
+                   alt="Watch on YouTube" loading="lazy"
+                   style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.35;">
+              <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.5rem;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24"
+                     fill="#c9a84c"><path d="M10 16.5l6-4.5-6-4.5v9zM12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/></svg>
+                <span style="color:#c9a84c;font-size:.75rem;letter-spacing:.08em;text-transform:uppercase;">Watch on YouTube</span>
+              </div>
+            </div>
+          </a>
+        </div>"""
+
+    schema_json = json.dumps({
+        "@context": "https://schema.org",
+        "@type": "LocalBusiness",
+        "name": "Jeff the Master Barber",
+        "image": f"https://{cfg['domain']}/logo.jpg",
+        "@id": f"https://{cfg['domain']}",
+        "url": f"https://{cfg['domain']}",
+        "telephone": loc.get("phone", ""),
+        "address": {
+            "@type": "PostalAddress",
+            "streetAddress": "7612 N Lockwood Ridge Rd",
+            "addressLocality": "Sarasota",
+            "addressRegion": "FL",
+            "postalCode": "34243",
+            "addressCountry": "US",
+        },
+        "geo": {
+            "@type": "GeoCoordinates",
+            "latitude": loc["geo_lat"],
+            "longitude": loc["geo_long"],
+        },
+        "openingHoursSpecification": [
+            {"@type": "OpeningHoursSpecification", "dayOfWeek": d, "opens": "09:00", "closes": "19:00"}
+            for d in ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+        ],
+        "priceRange": "$20 – $250",
+        "currenciesAccepted": "USD",
+        "paymentAccepted": "Cash, Credit Card",
+        "sameAs": [inte["youtube_channel"], inte["booking_url"]],
+        "hasMap": (
+            "https://www.google.com/maps/search/?api=1&query="
+            + loc["address"].replace(" ", "+")
+        ),
+        "areaServed": [
+            {"@type": "City", "name": "Sarasota"},
+            {"@type": "Neighborhood", "name": "University Park"},
+            {"@type": "Neighborhood", "name": "Whitfield"},
+            {"@type": "Neighborhood", "name": "The Meadows"},
+        ],
+    }, indent=2)
+
+    keywords_csv = ", ".join(seo["target_keywords"])
+
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{seo['title']}</title>
+  <meta name="description" content="{seo['meta_description']}">
+  <meta name="keywords" content="{keywords_csv}">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="https://{cfg['domain']}/">
+
+  <!-- Open Graph -->
+  <meta property="og:title" content="{seo['title']}">
+  <meta property="og:description" content="{seo['meta_description']}">
+  <meta property="og:url" content="https://{cfg['domain']}/">
+  <meta property="og:type" content="website">
+  <meta property="og:image" content="https://{cfg['domain']}/og-image.jpg">
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="{seo['title']}">
+  <meta name="twitter:description" content="{seo['meta_description']}">
+
+  <!-- AOS — Animate On Scroll -->
+  <link rel="stylesheet" href="https://unpkg.com/aos@2.3.4/dist/aos.css">
+
+  <style>
+    /* ── Reset & base ──────────────────────────────────────────────── */
+    *, *::before, *::after {{ box-sizing: border-box; margin: 0; padding: 0; }}
+    :root {{
+      --black: #0a0a0a;
+      --dark: #111111;
+      --dark2: #1a1a1a;
+      --gold: #c9a84c;
+      --gold-light: #f0d080;
+      --white: #ffffff;
+      --gray: #888888;
+      --light-gray: #cccccc;
+      --font-display: 'Arial Black', 'Impact', sans-serif;
+      --font-body: 'Arial', 'Helvetica Neue', sans-serif;
+      --section-pad: 5rem 1.5rem;
+      --radius: 8px;
+      --transition: .3s ease;
+    }}
+    html {{ scroll-behavior: smooth; }}
+    body {{
+      background: var(--black);
+      color: var(--white);
+      font-family: var(--font-body);
+      line-height: 1.6;
+      overflow-x: hidden;
+    }}
+
+    /* ── Navigation ────────────────────────────────────────────────── */
+    nav {{
+      position: fixed; top: 0; left: 0; width: 100%; z-index: 1000;
+      background: rgba(10,10,10,.92); backdrop-filter: blur(8px);
+      display: flex; align-items: center; justify-content: space-between;
+      padding: .9rem 2rem; border-bottom: 1px solid rgba(201,168,76,.25);
+    }}
+    nav .nav-brand {{
+      font-family: var(--font-display);
+      font-size: 1.2rem; letter-spacing: .12em; color: var(--gold);
+      text-transform: uppercase;
+    }}
+    nav ul {{ list-style: none; display: flex; gap: 2rem; }}
+    nav ul a {{
+      color: var(--light-gray); text-decoration: none; font-size: .9rem;
+      letter-spacing: .06em; text-transform: uppercase;
+      transition: color var(--transition);
+    }}
+    nav ul a:hover {{ color: var(--gold); }}
+    .btn-book-nav {{
+      background: var(--gold); color: var(--black);
+      padding: .55rem 1.3rem; border-radius: var(--radius);
+      font-weight: 700; font-size: .85rem; text-decoration: none;
+      letter-spacing: .06em; text-transform: uppercase;
+      transition: background var(--transition);
+    }}
+    .btn-book-nav:hover {{ background: var(--gold-light); }}
+
+    /* ── Hero ──────────────────────────────────────────────────────── */
+    #hero {{
+      position: relative; min-height: 100vh;
+      display: flex; align-items: center; justify-content: center;
+      text-align: center; padding: 6rem 1.5rem 4rem;
+      overflow: hidden;
+      background: linear-gradient(160deg, #0a0a0a 0%, #1a1205 60%, #0a0a0a 100%);
+    }}
+    #bg-video {{
+      position: absolute; top: 50%; left: 50%;
+      transform: translate(-50%,-50%);
+      min-width: 100%; min-height: 100%;
+      width: auto; height: auto;
+      object-fit: cover; z-index: 0; opacity: .35;
+    }}
+    .hero-overlay {{
+      position: absolute; inset: 0; z-index: 1;
+      background: linear-gradient(180deg,
+        rgba(0,0,0,.55) 0%, rgba(0,0,0,.35) 50%, rgba(0,0,0,.8) 100%);
+    }}
+    .hero-content {{ position: relative; z-index: 2; max-width: 860px; margin: 0 auto; }}
+    .hero-eyebrow {{
+      display: inline-block; margin-bottom: 1rem;
+      font-size: .8rem; letter-spacing: .18em; text-transform: uppercase;
+      color: var(--gold); border: 1px solid var(--gold);
+      padding: .3rem .9rem; border-radius: 2px;
+    }}
+    .hero-title {{
+      font-family: var(--font-display);
+      font-size: clamp(2.6rem, 8vw, 5.5rem);
+      font-weight: 900; line-height: 1.05;
+      text-transform: uppercase; letter-spacing: .04em;
+      color: var(--white); margin-bottom: 1.25rem;
+    }}
+    .hero-title span {{ color: var(--gold); }}
+    .hero-subtitle {{
+      font-size: clamp(1rem, 2.5vw, 1.25rem);
+      color: var(--light-gray); margin-bottom: 2.2rem; max-width: 580px; margin-inline: auto;
+    }}
+    .hero-cta-group {{ display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }}
+    .btn-primary {{
+      background: var(--gold); color: var(--black);
+      padding: .85rem 2.2rem; border-radius: var(--radius);
+      font-weight: 700; font-size: 1rem; text-decoration: none;
+      letter-spacing: .06em; text-transform: uppercase;
+      transition: background var(--transition), transform var(--transition);
+      display: inline-block;
+    }}
+    .btn-primary:hover {{ background: var(--gold-light); transform: translateY(-2px); }}
+    .btn-outline {{
+      background: transparent; color: var(--white);
+      padding: .85rem 2.2rem; border-radius: var(--radius);
+      border: 2px solid var(--white); font-weight: 600; font-size: 1rem;
+      text-decoration: none; letter-spacing: .06em; text-transform: uppercase;
+      transition: border-color var(--transition), color var(--transition);
+      display: inline-block;
+    }}
+    .btn-outline:hover {{ border-color: var(--gold); color: var(--gold); }}
+    .hero-address {{
+      margin-top: 2rem; font-size: .9rem; color: var(--gray);
+      letter-spacing: .04em;
+    }}
+    .hero-address a {{ color: var(--gold); text-decoration: none; }}
+
+    /* ── Section shared ────────────────────────────────────────────── */
+    section {{ padding: var(--section-pad); }}
+    .section-label {{
+      font-size: .78rem; letter-spacing: .2em; text-transform: uppercase;
+      color: var(--gold); margin-bottom: .6rem;
+    }}
+    .section-title {{
+      font-family: var(--font-display);
+      font-size: clamp(1.8rem, 4vw, 2.8rem);
+      text-transform: uppercase; margin-bottom: 1rem; color: var(--white);
+    }}
+    .section-divider {{
+      width: 60px; height: 3px; background: var(--gold); margin-bottom: 2.5rem;
+    }}
+    .section-center {{ text-align: center; }}
+    .section-center .section-divider {{ margin-inline: auto; }}
+
+    /* ── Portfolio / Skills Cards ──────────────────────────────────── */
+    #portfolio {{ background: var(--dark2); }}
+    .cards-grid {{
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 1.5rem; margin-top: 1rem;
+    }}
+    .card {{
+      background: var(--dark); border: 1px solid rgba(201,168,76,.15);
+      border-radius: var(--radius); overflow: hidden;
+      transition: border-color var(--transition), transform var(--transition);
+    }}
+    .card:hover {{ border-color: var(--gold); transform: translateY(-4px); }}
+    .card-img {{
+      width: 100%; aspect-ratio: 4/3; background: #1e1e1e;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 3rem; color: var(--gold);
+    }}
+    .card-body {{ padding: 1.1rem; }}
+    .card-title {{ font-weight: 700; font-size: 1rem; margin-bottom: .35rem; }}
+    .card-desc {{ font-size: .85rem; color: var(--gray); }}
+
+    /* ── Pricing ───────────────────────────────────────────────────── */
+    #pricing {{ background: var(--black); }}
+    .pricing-grid {{
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 2rem; margin-top: 1rem;
+    }}
+    .pricing-category {{
+      background: var(--dark2);
+      border: 1px solid rgba(201,168,76,.2);
+      border-radius: var(--radius); padding: 1.75rem;
+    }}
+    .pricing-category h3 {{
+      font-family: var(--font-display);
+      font-size: 1rem; text-transform: uppercase;
+      letter-spacing: .1em; color: var(--gold);
+      margin-bottom: 1.1rem; padding-bottom: .6rem;
+      border-bottom: 1px solid rgba(201,168,76,.25);
+    }}
+    .price-table {{ width: 100%; border-collapse: collapse; }}
+    .price-table tr {{ border-bottom: 1px solid rgba(255,255,255,.06); }}
+    .price-table tr:last-child {{ border-bottom: none; }}
+    .price-table td {{ padding: .6rem 0; font-size: .9rem; color: var(--light-gray); }}
+    .price-table td.price {{
+      text-align: right; font-weight: 700; color: var(--gold); white-space: nowrap;
+    }}
+    .book-cta-bar {{
+      text-align: center; margin-top: 3rem;
+    }}
+    .book-cta-bar p {{ color: var(--gray); margin-bottom: 1.2rem; font-size: .95rem; }}
+
+    /* ── YouTube Grid ──────────────────────────────────────────────── */
+    #videos {{ background: var(--dark2); }}
+    .yt-grid {{
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1rem; margin-top: 1rem;
+    }}
+    @media (max-width: 900px) {{ .yt-grid {{ grid-template-columns: repeat(2, 1fr); }} }}
+    @media (max-width: 500px) {{ .yt-grid {{ grid-template-columns: 1fr; }} }}
+    .yt-card {{
+      background: var(--dark); border: 1px solid rgba(201,168,76,.12);
+      border-radius: var(--radius); overflow: hidden;
+      transition: border-color var(--transition);
+    }}
+    .yt-card:hover {{ border-color: var(--gold); }}
+    .yt-embed-wrapper {{
+      position: relative; width: 100%; padding-top: 56.25%; /* 16:9 */
+    }}
+    .yt-embed-wrapper iframe {{
+      position: absolute; inset: 0; width: 100%; height: 100%;
+    }}
+    .yt-channel-link {{
+      text-align: center; margin-top: 2.5rem;
+    }}
+    .yt-channel-link a {{
+      color: var(--gold); text-decoration: none; font-size: .95rem;
+      border-bottom: 1px solid rgba(201,168,76,.4);
+      transition: color var(--transition);
+    }}
+    .yt-channel-link a:hover {{ color: var(--gold-light); }}
+
+    /* ── Booking ───────────────────────────────────────────────────── */
+    #booking {{
+      background: linear-gradient(135deg, #0d0d00 0%, #1a1205 50%, #0d0d00 100%);
+      text-align: center; padding: 6rem 1.5rem;
+    }}
+    #booking .section-title {{ font-size: clamp(2rem, 5vw, 3.5rem); }}
+    #booking p {{ color: var(--light-gray); max-width: 560px; margin: 0 auto 2.5rem; font-size: 1.05rem; }}
+
+    /* ── Footer ────────────────────────────────────────────────────── */
+    footer {{
+      background: var(--dark2); border-top: 1px solid rgba(201,168,76,.2);
+      padding: 3rem 1.5rem; text-align: center;
+    }}
+    footer .footer-brand {{
+      font-family: var(--font-display); font-size: 1.3rem;
+      color: var(--gold); text-transform: uppercase; letter-spacing: .12em;
+      margin-bottom: .75rem;
+    }}
+    footer p {{ font-size: .85rem; color: var(--gray); line-height: 1.8; }}
+    footer a {{ color: var(--gold); text-decoration: none; }}
+    footer .footer-keywords {{
+      font-size: .75rem; color: #444; margin-top: 1.5rem; max-width: 700px;
+      margin-inline: auto; line-height: 2;
+    }}
+  </style>
+</head>
+<body>
+
+<!-- ── Navigation ──────────────────────────────────────────────────────── -->
+<nav>
+  <div class="nav-brand">Jeff The Master Barber</div>
+  <ul>
+    <li><a href="#portfolio">Portfolio</a></li>
+    <li><a href="#pricing">Pricing</a></li>
+    <li><a href="#videos">Videos</a></li>
+    <li><a href="#booking">Book</a></li>
+  </ul>
+  <a href="{inte['booking_url']}" target="_blank" rel="noopener" class="btn-book-nav">Book Now</a>
+</nav>
+
+<!-- ── Hero ────────────────────────────────────────────────────────────── -->
+<section id="hero">
+  {video_section}
+  <div class="hero-overlay"></div>
+  <div class="hero-content" data-aos="fade-up" data-aos-duration="900">
+    <div class="hero-eyebrow">Sarasota, FL · Precision Barbering</div>
+    <h1 class="hero-title">
+      Jeff The<br><span>Master</span> Barber
+    </h1>
+    <p class="hero-subtitle">
+      Precision cuts. Flawless fades. VIP grooming experience.
+      The best barber in Sarasota — now available for mobile house calls.
+    </p>
+    <div class="hero-cta-group">
+      <a href="{inte['booking_url']}" target="_blank" rel="noopener" class="btn-primary">Book Your Appointment</a>
+      <a href="#pricing" class="btn-outline">View Pricing</a>
+    </div>
+    <p class="hero-address">
+      📍 <a href="https://maps.google.com/?q=7612+N+Lockwood+Ridge+Rd+Sarasota+FL+34243"
+           target="_blank" rel="noopener">
+        7612 N Lockwood Ridge Rd, Sarasota, FL 34243
+      </a>
+    </p>
+  </div>
+</section>
+
+<!-- ── Portfolio ───────────────────────────────────────────────────────── -->
+<section id="portfolio">
+  <div class="section-center">
+    <p class="section-label">The Work</p>
+    <h2 class="section-title">Portfolio</h2>
+    <div class="section-divider"></div>
+  </div>
+  <div class="cards-grid">
+    <div class="card" data-aos="fade-up" data-aos-delay="0">
+      <div class="card-img">✂️</div>
+      <div class="card-body">
+        <div class="card-title">Precision Fade</div>
+        <div class="card-desc">Skin fade blended to perfection — clean lines, sharp edges.</div>
+      </div>
+    </div>
+    <div class="card" data-aos="fade-up" data-aos-delay="80">
+      <div class="card-img">🧔</div>
+      <div class="card-body">
+        <div class="card-title">Beard Sculpt</div>
+        <div class="card-desc">Beard shaping, edge-up, and hot-towel finish.</div>
+      </div>
+    </div>
+    <div class="card" data-aos="fade-up" data-aos-delay="160">
+      <div class="card-img">👑</div>
+      <div class="card-body">
+        <div class="card-title">VIP Package</div>
+        <div class="card-desc">Full wash, exfoliation, haircut, beard trim &amp; scalp massage.</div>
+      </div>
+    </div>
+    <div class="card" data-aos="fade-up" data-aos-delay="240">
+      <div class="card-img">🎨</div>
+      <div class="card-body">
+        <div class="card-title">Hair Design</div>
+        <div class="card-desc">Custom hair art and specialty cuts — Pompadour, Mohawk &amp; more.</div>
+      </div>
+    </div>
+    <div class="card" data-aos="fade-up" data-aos-delay="320">
+      <div class="card-img">🚗</div>
+      <div class="card-body">
+        <div class="card-title">Mobile Service</div>
+        <div class="card-desc">Jeff comes to you — house calls across Sarasota &amp; surrounding areas.</div>
+      </div>
+    </div>
+    <div class="card" data-aos="fade-up" data-aos-delay="400">
+      <div class="card-img">🎓</div>
+      <div class="card-body">
+        <div class="card-title">Kids &amp; Teens</div>
+        <div class="card-desc">Patient, skilled cuts for the younger clients.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Pricing ─────────────────────────────────────────────────────────── -->
+<section id="pricing">
+  <div class="section-center">
+    <p class="section-label">Transparent Rates</p>
+    <h2 class="section-title">Pricing</h2>
+    <div class="section-divider"></div>
+  </div>
+  <div class="pricing-grid">
+    {pricing_html}
+  </div>
+  <div class="book-cta-bar" data-aos="fade-up">
+    <p>All prices vary by complexity. Contact Jeff for a custom quote.</p>
+    <a href="{inte['booking_url']}" target="_blank" rel="noopener" class="btn-primary">Book on Booksy</a>
+  </div>
+</section>
+
+<!-- ── YouTube Videos ──────────────────────────────────────────────────── -->
+<section id="videos">
+  <div class="section-center">
+    <p class="section-label">Watch The Work</p>
+    <h2 class="section-title">Videos</h2>
+    <div class="section-divider"></div>
+  </div>
+  <div class="yt-grid">
+    {yt_grid_items}
+  </div>
+  <div class="yt-channel-link" data-aos="fade-up">
+    <a href="{inte['youtube_channel']}" target="_blank" rel="noopener">
+      ▶ View all videos on YouTube @JEFFREYELBARBEROMASTER
+    </a>
+  </div>
+</section>
+
+<!-- ── Booking CTA ──────────────────────────────────────────────────────── -->
+<section id="booking">
+  <p class="section-label" data-aos="fade-up">Ready for a Fresh Cut?</p>
+  <h2 class="section-title" data-aos="fade-up" data-aos-delay="80">Book Your Appointment</h2>
+  <p data-aos="fade-up" data-aos-delay="160">
+    Serving Sarasota, University Park, Whitfield, The Meadows, and surrounding areas.
+    Mobile house calls available throughout Sarasota County.
+  </p>
+  <div data-aos="fade-up" data-aos-delay="240">
+    <a href="{inte['booking_url']}" target="_blank" rel="noopener" class="btn-primary" style="font-size:1.1rem;padding:1rem 2.8rem;">
+      Book Now on Booksy
+    </a>
+  </div>
+</section>
+
+<!-- ── Footer ──────────────────────────────────────────────────────────── -->
+<footer>
+  <div class="footer-brand">Jeff The Master Barber</div>
+  <p>
+    7612 N Lockwood Ridge Rd, Sarasota, FL 34243<br>
+    <a href="{inte['booking_url']}" target="_blank" rel="noopener">Book on Booksy</a>
+    &nbsp;·&nbsp;
+    <a href="{inte['youtube_channel']}" target="_blank" rel="noopener">YouTube</a>
+  </p>
+  <p class="footer-keywords">
+    Best barber in Sarasota · Best barber near me · Mobile barber Sarasota ·
+    Haircut Sarasota FL · Barbers in Sarasota · VIP haircut Sarasota ·
+    Beard trim Sarasota · University Park barber · Whitfield barber ·
+    The Meadows barber · Best mobile barber Sarasota
+  </p>
+</footer>
+
+<!-- ── LocalBusiness Schema Markup ─────────────────────────────────────── -->
+<script type="application/ld+json">
+{schema_json}
+</script>
+
+<!-- ── AOS Init ────────────────────────────────────────────────────────── -->
+<script src="https://unpkg.com/aos@2.3.4/dist/aos.js"></script>
+<script>
+  AOS.init({{
+    duration: 700,
+    easing: 'ease-out-cubic',
+    once: true,
+    offset: 80,
+  }});
+</script>
+</body>
+</html>"""
+
 st.set_page_config(
     page_title="Sturdy Broccoli — Enterprise SEO Content Factory",
     page_icon="🥦",
@@ -145,7 +801,7 @@ if "db" not in st.session_state:
 
 db: Database = st.session_state.db
 
-tab_dashboard, tab_builder, tab_prompt, tab_hub, tab_competitor, tab_multiformat, tab_template, tab_library, tab_staging, tab_validator, tab_agency, tab_editor, tab_wp, tab_ranking = st.tabs([
+tab_dashboard, tab_builder, tab_prompt, tab_hub, tab_competitor, tab_multiformat, tab_template, tab_library, tab_staging, tab_validator, tab_agency, tab_editor, tab_wp, tab_ranking, tab_jeff = st.tabs([
     "🏠 Dashboard",
     "⚡ Page Builder",
     "📝 Prompt Generator",
@@ -160,6 +816,7 @@ tab_dashboard, tab_builder, tab_prompt, tab_hub, tab_competitor, tab_multiformat
     "✏️ Content Editor",
     "🚀 WordPress Publisher",
     "📊 Ranking Tracker",
+    "🪒 Jeff the Master Barber",
 ])
 
 # ---------------------------------------------------------------------------
@@ -2160,3 +2817,248 @@ with tab_ranking:
                 st.subheader("🔴 Lost Keywords")
                 for item in report["lost_keywords"][:10]:
                     st.write(f"🔻 **{item['keyword']}** — last seen at #{item['last_position']:.0f}")
+
+
+# ===========================================================================
+# Tab: Jeff the Master Barber — Client Quick-Start
+# ===========================================================================
+
+with tab_jeff:
+    st.header("🪒 Jeff the Master Barber — Client Quick-Start")
+    st.caption(
+        "Pre-configured client profile for jeffthemasterbarber.com. "
+        "Generate the full dark-mode SEO landing page, connect to WordPress, "
+        "and load Sarasota barber ranking keywords — all in one place."
+    )
+
+    cfg_jeff = JEFF_SITE_CONFIG
+    loc_jeff = cfg_jeff["location"]
+    inte_jeff = cfg_jeff["integrations"]
+    seo_jeff = cfg_jeff["seo"]
+
+    # -- Client Info Panel ----------------------------------------------------
+    st.markdown('<div class="section-title">📋 Client Profile</div>', unsafe_allow_html=True)
+    col_j1, col_j2, col_j3 = st.columns(3)
+    col_j1.markdown(
+        f"**Client:** {cfg_jeff['client']}\n\n"
+        f"**Domain:** [{cfg_jeff['domain']}](https://{cfg_jeff['domain']})\n\n"
+        f"**Address:** {loc_jeff['address']}"
+    )
+    col_j2.markdown(
+        f"**Booksy:** [{inte_jeff['booking_url']}]({inte_jeff['booking_url']})\n\n"
+        f"**YouTube:** [@JEFFREYELBARBEROMASTER]({inte_jeff['youtube_channel']})\n\n"
+        f"**WP User:** `{inte_jeff['wp_api_user']}`"
+    )
+    col_j3.markdown(
+        f"**Primary Keyword:** {seo_jeff['primary_keyword']}\n\n"
+        f"**Color Scheme:** {cfg_jeff['ui_elements']['color_scheme']}\n\n"
+        f"**Location:** {loc_jeff['geo_lat']}°N, {abs(loc_jeff['geo_long'])}°W"
+    )
+
+    st.divider()
+
+    # -- Landing Page Generator -----------------------------------------------
+    st.markdown('<div class="section-title">🌐 Generate Landing Page</div>', unsafe_allow_html=True)
+    st.caption(
+        "Generates a complete dark-mode HTML5 landing page with AOS scroll animations, "
+        "video background support, 4×4 YouTube grid, pricing table, Booksy CTA, "
+        "and LocalBusiness JSON-LD schema."
+    )
+
+    jeff_video_url = st.text_input(
+        "Background Video URL (.mp4 or .webm)",
+        placeholder="https://jeffthemasterbarber.com/wp-content/uploads/barber-loop.mp4",
+        key="jeff_video_url",
+        help="Direct link to an MP4/WebM file. Leave blank for dark-gradient fallback.",
+    )
+
+    if st.button("⚡ Generate Jeff's Landing Page", type="primary", key="btn_gen_jeff"):
+        jeff_html = _build_jeff_barber_html(video_url=jeff_video_url)
+        st.session_state["jeff_generated_html"] = jeff_html
+        st.success(f"✅ Landing page generated! {len(jeff_html):,} characters of production-ready HTML5.")
+
+    jeff_html_out = st.session_state.get("jeff_generated_html")
+    if jeff_html_out:
+        col_dl, col_dep = st.columns([1, 2])
+        with col_dl:
+            st.download_button(
+                label="⬇️ Download HTML",
+                data=jeff_html_out,
+                file_name="jeffthemasterbarber-landing.html",
+                mime="text/html",
+                key="btn_dl_jeff",
+            )
+            if st.button("💾 Save to Page Library", key="btn_save_jeff"):
+                pid = db.create_page(
+                    service_type="barber_landing_page",
+                    topic="Jeff the Master Barber — Sarasota Landing Page",
+                    primary_keyword=seo_jeff["primary_keyword"],
+                    page_type="service_hub",
+                )
+                db.save_content_version(pid, content_html=jeff_html_out, content_markdown="", quality_report={})
+                st.success(f"✅ Saved to Page Library (ID: {pid})")
+
+        with col_dep:
+            jeff_wp_pub = WordPressPublisher(db)
+            jeff_wp_conns = jeff_wp_pub.list_connections()
+            if jeff_wp_conns:
+                jeff_conn_options = {
+                    f"{c.get('site_name') or c['site_url']} (id={c['id']})": c["id"]
+                    for c in jeff_wp_conns
+                }
+                jeff_sel_conn = st.selectbox(
+                    "Deploy to WordPress site:",
+                    list(jeff_conn_options.keys()),
+                    key="jeff_wp_conn_sel",
+                )
+                jeff_pub_status = st.radio(
+                    "Publish status:", ["draft", "publish"], horizontal=True, key="jeff_pub_status"
+                )
+                if st.button("🚀 Deploy to WordPress", key="btn_deploy_jeff"):
+                    result = jeff_wp_pub.publish_page(
+                        page_id=0,
+                        connection_id=jeff_conn_options[jeff_sel_conn],
+                        title=seo_jeff["title"],
+                        content=jeff_html_out,
+                        status=jeff_pub_status,
+                    )
+                    if result["success"]:
+                        st.success(f"✅ Deployed! View at: {result.get('post_url', '—')}")
+                    else:
+                        st.error(f"Deploy failed: {result.get('message')}")
+            else:
+                st.info("💡 Add the WordPress connection below and then deploy.")
+
+        with st.expander("🖥️ Live Preview", expanded=False):
+            try:
+                import streamlit.components.v1 as components
+                components.html(jeff_html_out, height=700, scrolling=True)
+            except Exception:
+                st.code(jeff_html_out[:3000] + "\n...", language="html")
+
+        with st.expander("📄 View HTML Source"):
+            st.code(jeff_html_out, language="html")
+
+    st.divider()
+
+    # -- WordPress Quick Connect ----------------------------------------------
+    st.markdown('<div class="section-title">🔌 WordPress Quick Connect</div>', unsafe_allow_html=True)
+    st.caption(
+        "The site URL and username are pre-filled from the client profile. "
+        "Enter the WordPress Application Password to save the connection. "
+        "**Never share or commit your Application Password.**"
+    )
+
+    with st.form("jeff_wp_quick_connect"):
+        jqc_url = st.text_input(
+            "Site URL",
+            value=inte_jeff["wp_site_url"],
+            key="jqc_url",
+        )
+        jqc_name = st.text_input(
+            "Site Name (label)",
+            value="Jeff the Master Barber",
+            key="jqc_name",
+        )
+        jqc_user = st.text_input(
+            "API Username",
+            value=inte_jeff["wp_api_user"],
+            key="jqc_user",
+        )
+        jqc_pass = st.text_input(
+            "Application Password",
+            type="password",
+            key="jqc_pass",
+            help=(
+                "Generate one at: WordPress Admin → Users → Profile → "
+                "Application Passwords. Do NOT paste it into code or commit it."
+            ),
+        )
+        if st.form_submit_button("💾 Save WordPress Connection"):
+            if not jqc_pass.strip():
+                st.error("Application Password is required.")
+            else:
+                jeff_wp_pub2 = WordPressPublisher(db)
+                conn_id = jeff_wp_pub2.add_connection(
+                    site_url=jqc_url,
+                    api_username=jqc_user,
+                    api_password=jqc_pass,
+                    site_name=jqc_name or jqc_url,
+                    client_id=None,
+                )
+                st.success(
+                    f"✅ WordPress connection saved (id={conn_id}). "
+                    "You can now deploy the landing page above."
+                )
+                st.rerun()
+
+    st.divider()
+
+    # -- Sarasota SEO Ranking Keywords ----------------------------------------
+    st.markdown('<div class="section-title">📊 Sarasota SEO Ranking Keywords</div>', unsafe_allow_html=True)
+    st.caption("Pre-loaded target keywords for tracking. Add them to the Ranking Tracker tab.")
+
+    jeff_tracker = RankingTracker(db)
+    jeff_kw_cols = st.columns(2)
+    for i, kw in enumerate(seo_jeff["target_keywords"]):
+        jeff_kw_cols[i % 2].write(f"🔑 {kw}")
+
+    st.markdown("")
+    with st.expander("➕ Bulk-Add Keywords to Ranking Tracker"):
+        jeff_pages_for_rank = db.list_pages()
+        jeff_rank_page_opts = {"— No page —": None}
+        jeff_rank_page_opts.update(
+            {f"[{p['id']}] {p['topic']}": p["id"] for p in jeff_pages_for_rank}
+        )
+        jeff_rank_page_sel = st.selectbox(
+            "Associate with page (optional):",
+            list(jeff_rank_page_opts.keys()),
+            key="jeff_rank_page_sel",
+        )
+        jeff_rank_page_id = jeff_rank_page_opts[jeff_rank_page_sel]
+
+        if st.button("📥 Add All Sarasota Keywords", key="btn_add_jeff_kws"):
+            added = 0
+            for kw in seo_jeff["target_keywords"]:
+                jeff_tracker.add_manual_ranking(
+                    keyword=kw,
+                    position=100.0,
+                    page_id=jeff_rank_page_id,
+                    impressions=0,
+                    clicks=0,
+                    ctr=0.0,
+                    recorded_date=date.today().isoformat(),
+                )
+                added += 1
+            st.success(
+                f"✅ Added {added} keywords to the Ranking Tracker. "
+                "Visit the 📊 Ranking Tracker tab to monitor progress."
+            )
+
+    st.divider()
+
+    # -- LocalBusiness JSON-LD Preview ----------------------------------------
+    st.markdown('<div class="section-title">🗺️ LocalBusiness Schema Preview</div>', unsafe_allow_html=True)
+    st.caption("The JSON-LD below is automatically embedded in every generated landing page.")
+    schema_preview = {
+        "@context": "https://schema.org",
+        "@type": "LocalBusiness",
+        "name": "Jeff the Master Barber",
+        "url": f"https://{cfg_jeff['domain']}",
+        "address": {
+            "@type": "PostalAddress",
+            "streetAddress": "7612 N Lockwood Ridge Rd",
+            "addressLocality": "Sarasota",
+            "addressRegion": "FL",
+            "postalCode": "34243",
+            "addressCountry": "US",
+        },
+        "geo": {
+            "@type": "GeoCoordinates",
+            "latitude": loc_jeff["geo_lat"],
+            "longitude": loc_jeff["geo_long"],
+        },
+        "priceRange": "$20 – $250",
+        "sameAs": [inte_jeff["youtube_channel"], inte_jeff["booking_url"]],
+    }
+    st.code(json.dumps(schema_preview, indent=2), language="json")
